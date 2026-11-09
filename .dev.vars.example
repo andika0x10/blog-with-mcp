@@ -1,0 +1,5 @@
+# Copy to .dev.vars, which is ignored by git.
+ADMIN_USERNAME=
+ADMIN_PASSWORD=
+# Must match the browser origin, including the local development port.
+SITE_URL=http://localhost:5173

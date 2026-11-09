@@ -4,14 +4,34 @@
 	"private": true,
 	"packageManager": "npm",
 	"dependencies": {
+		"@cloudflare/workers-oauth-provider": "^1.2.4",
+		"@fontsource-variable/public-sans": "^5.3.0",
+		"@gsap/react": "^2.1.2",
+		"@modelcontextprotocol/sdk": "^1.32.2",
+		"@modelcontextprotocol/server": "^2.4.0",
 		"@vinext/cloudflare": "latest",
+		"agents": "^0.33.0",
+		"drizzle-orm": "^0.45.4",
+		"gsap": "^3.15.1",
+		"highlight.js": "^11.12.0",
+		"ipaddr.js": "^2.5.0",
+		"katex": "^0.19.1",
 		"react": "latest",
 		"react-dom": "latest",
+		"react-markdown": "^10.1.0",
 		"react-server-dom-webpack": "latest",
-		"vinext": "latest"
+		"rehype-highlight": "^7.0.2",
+		"rehype-katex": "^7.0.1",
+		"remark-gfm": "^4.0.1",
+		"remark-math": "^6.0.0",
+		"vinext": "latest",
+		"zod": "^4.6.7"
 	},
 	"devDependencies": {
 		"@cloudflare/vite-plugin": "beta",
+		"@cloudflare/vitest-plugin": "^1.6.0",
+		"@cloudflare/workers-types": "^5.20261109.1",
+		"@playwright/test": "^1.65.0",
 		"@tailwindcss/postcss": "latest",
 		"@types/node": "latest",
 		"@types/react": "latest",
@@ -19,9 +39,12 @@
 		"@vitejs/plugin-react": "latest",
 		"@vitejs/plugin-rsc": "latest",
 		"cf": "^1.0.0-beta.28",
+		"drizzle-kit": "^0.31.11",
+		"prettier": "3.9.10",
 		"tailwindcss": "latest",
 		"typescript": "latest",
-		"vite": "8.3.0"
+		"vite": "^8.3.6",
+		"vitest": "^5.1.0"
 	},
 	"type": "module",
 	"scripts": {
@@ -30,6 +53,16 @@
 		"start": "vite preview",
 		"deploy": "vinext-cloudflare deploy",
 		"preview": "npm run build && npm run start --",
-		"cf-typegen": "cf workers types"
+		"cf-typegen": "cf workers types",
+		"format": "prettier --write .",
+		"test": "vitest run",
+		"typecheck": "cf workers types && tsc --noEmit",
+		"test:browser": "playwright test",
+		"db:migrate:local": "node scripts/local-db.mjs",
+		"db:seed:local": "node scripts/local-db.mjs --seed"
+	},
+	"overrides": {
+		"katex": "$katex",
+		"fflate": "^0.8.3"
 	}
 }
