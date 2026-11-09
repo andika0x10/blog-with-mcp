@@ -1,15 +1,36 @@
 "use client";
-import { useRef, useState, useEffect, type ReactNode } from "react";
+import { useRef, useState, useEffect, useCallback, type ReactNode } from "react";
 import dynamic from "next/dynamic";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 // GSAP starts its ticker at module load. Keep that module out of Workers SSR.
-const Motion = dynamic(() => import("./motion"), { ssr: false });
+// Animation is optional: a failed chunk must not replace the readable page.
+const PageMotion = dynamic(() => import("./motion").then((m) => m.PageMotion).catch(() => () => null), { ssr: false });
+const MenuMotion = dynamic(() => import("./motion").then((m) => m.MenuMotion).catch(() => () => null), { ssr: false });
 export function Entrance({ children }: { children: ReactNode }) {
   const scope = useRef<HTMLDivElement>(null),
-    pathname = usePathname();
+    pathname = usePathname(),
+    query = useSearchParams(),
+    restored = useRef(false);
+  const route = `${pathname}?${query.toString()}`;
+  const arrival = useRef({ route, at: 0, initial: true });
+  if (arrival.current.route !== route) arrival.current = { route, at: performance.now(), initial: false };
+  useEffect(() => {
+    const restore = () => {
+      restored.current = true;
+    };
+    const navigate = () => {
+      restored.current = false;
+    };
+    window.addEventListener("popstate", restore);
+    document.addEventListener("click", navigate, true);
+    return () => {
+      window.removeEventListener("popstate", restore);
+      document.removeEventListener("click", navigate, true);
+    };
+  }, []);
   return (
     <div ref={scope}>
-      <Motion scope={scope} kind="intro" trigger={pathname} />
+      <PageMotion scope={scope} route={route} restored={restored} arrival={arrival.current} />
       {children}
     </div>
   );
@@ -49,28 +70,60 @@ export function ThemeControl({ defaultTheme }: { defaultTheme: string }) {
 }
 export function MobileMenu({ links }: { links: { label: string; href: string }[] }) {
   const [open, setOpen] = useState(false),
+    [visible, setVisible] = useState(false),
+    [interactive, setInteractive] = useState(false),
+    ready = useRef(false),
     panel = useRef<HTMLDivElement>(null),
     button = useRef<HTMLButtonElement>(null);
-  const pathname = usePathname();
-  useEffect(() => setOpen(false), [pathname]);
+  const pathname = usePathname(),
+    query = useSearchParams();
+  useEffect(() => setInteractive(true), []);
+  const onReady = useCallback(() => {
+    ready.current = true;
+  }, []);
+  const onClosed = useCallback(() => {
+    setVisible(false);
+    setOpen(false);
+  }, []);
+  const close = () => {
+    setOpen(false);
+    if (!ready.current) setVisible(false);
+  };
+  useEffect(() => {
+    setOpen(false);
+    setVisible(false);
+  }, [pathname, query.toString()]);
   return (
     <div
       className="mobile-navigation"
       onKeyDown={(e) => {
         if (e.key === "Escape") {
-          setOpen(false);
+          close();
           button.current?.focus();
         }
       }}
     >
-      <Motion scope={panel} kind="menu" trigger={open} />
-      <button ref={button} className="text-button" aria-expanded={open} aria-controls="mobile-menu" onClick={() => setOpen((v) => !v)}>
+      <MenuMotion scope={panel} open={open} onReady={onReady} onClosed={onClosed} />
+      <button
+        ref={button}
+        disabled={!interactive}
+        className="text-button"
+        aria-expanded={open}
+        aria-controls="mobile-menu"
+        onClick={() => {
+          if (open) close();
+          else {
+            setVisible(true);
+            setOpen(true);
+          }
+        }}
+      >
         {open ? "Tutup" : "Menu"}
       </button>
-      <div id="mobile-menu" ref={panel} hidden={!open}>
+      <div id="mobile-menu" ref={panel} hidden={!visible} inert={!open} aria-hidden={!open}>
         <nav aria-label="Navigasi mobile">
           {links.map((l) => (
-            <a key={l.href} href={l.href} onClick={() => setOpen(false)}>
+            <a key={l.href} href={l.href} onClick={close}>
               {l.label}
             </a>
           ))}

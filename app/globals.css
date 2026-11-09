@@ -142,8 +142,33 @@ button:disabled {
   text-decoration: none;
 }
 .post-list h2 a:hover {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
+  --link-reveal: 100%;
+}
+.post-list h2 a,
+.archive-year li a {
+  --link-reveal: 0%;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: left calc(100% - 0.04em);
+  background-size: var(--link-reveal) 1px;
+  background-repeat: no-repeat;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  padding-bottom: 0.06em;
+}
+.post-list h2 a:focus-visible,
+.archive-year li a:hover,
+.archive-year li a:focus-visible {
+  --link-reveal: 100%;
+}
+.index-intro h1,
+.section-header h1,
+.article-header h1 {
+  text-wrap: wrap;
+}
+/* Give descenders and accents room inside each line's reveal mask. */
+.motion-line-mask {
+  padding-block: 0.12em;
+  margin-block: -0.12em;
 }
 .post-list p {
   margin: 0 0 13px;
@@ -196,7 +221,7 @@ button:disabled {
   letter-spacing: -0.065em;
   line-height: 1.15;
   margin: 0 0 24px;
-  text-wrap: balance;
+  text-wrap: wrap;
   overflow-wrap: anywhere;
 }
 .article-summary {
@@ -460,7 +485,7 @@ button:disabled {
   text-decoration: none;
 }
 .archive-year a:hover {
-  text-decoration: underline;
+  text-decoration: none;
 }
 .archive-year time {
   font-size: 11px;
