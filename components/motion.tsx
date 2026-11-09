@@ -128,13 +128,13 @@ export function MenuMotion({ scope, open, onReady, onClosed }: { scope: Scope; o
   const currentOpen = useRef(open);
   currentOpen.current = open;
   useGSAP(
-    (_, contextSafe) => {
+    () => {
       const panel = scope.current;
       if (!panel) return;
       const mm = gsap.matchMedia();
       mm.add(
         conditions,
-        () => {
+        (_context, contextSafe) => {
           const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
           const desktop = matchMedia("(min-width: 641px)").matches;
           if (reduced || desktop) {
@@ -155,7 +155,9 @@ export function MenuMotion({ scope, open, onReady, onClosed }: { scope: Scope; o
             0.05
           );
           let playback: gsap.core.Tween | undefined;
-          control.current = contextSafe!((value: boolean) => {
+          // Capture playback in this media context. Re-entering the parent
+          // useGSAP context here would create a cycle during mm.add().
+          const play = contextSafe!((value: boolean) => {
             playback?.kill();
             playback = timeline.tweenTo(value ? timeline.duration() : 0, {
               duration: value ? Math.max(0.01, timeline.duration() - timeline.time()) : 0.18,
@@ -164,6 +166,7 @@ export function MenuMotion({ scope, open, onReady, onClosed }: { scope: Scope; o
               },
             });
           });
+          control.current = (value) => play(value);
           control.current(currentOpen.current);
           return () => {
             playback?.kill();

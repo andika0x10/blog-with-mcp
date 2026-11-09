@@ -1,7 +1,72 @@
 import { test, expect } from "@playwright/test";
 import { fonts } from "../../lib/fonts";
+import { textSizes } from "../../lib/text-size";
 
 const toggle = (page: import("@playwright/test").Page) => page.getByRole("button", { name: "Tampilan", exact: true });
+
+test("menu contexts clean up without recursion across breakpoints and motion changes", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  for (let i = 0; i < 3; i++) {
+    await page.getByRole("button", { name: "Menu", exact: true }).click();
+    await expect(page.getByRole("navigation", { name: "Navigasi mobile" })).toBeVisible();
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.keyboard.press("Escape");
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeHidden();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeVisible();
+  }
+  expect(errors).toEqual([]);
+});
+
+for (const width of [320, 390, 1440]) {
+  test(`${width}px: text sizes reflow content without changing header controls`, async ({ page }, testInfo) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/posts/tentang-memperhatikan");
+    await toggle(page).click();
+    const headerSize = await toggle(page).evaluate((el) => getComputedStyle(el).fontSize);
+    for (const font of ["public-sans", "literata"]) {
+      await page.getByLabel("Font", { exact: true }).selectOption(font);
+      for (const size of textSizes) {
+        await page.getByLabel("Ukuran teks").selectOption(size.id);
+        await expect(page.locator("html")).toHaveAttribute("data-font-size", size.id);
+        await expect(page.locator(".prose")).toHaveCSS("font-size", `${Number(((width <= 640 ? 18 : 19) * Number(size.scale)).toFixed(1))}px`);
+        await expect(page.locator(".font-preview")).toHaveCSS("font-size", `${Number((18 * Number(size.scale)).toFixed(1))}px`);
+        await expect(toggle(page)).toHaveCSS("font-size", headerSize);
+        await expect(page.locator(".article-header h1")).toBeVisible();
+        await expect(page.locator(".motion-line")).toHaveCount(0);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      }
+    }
+    await page.screenshot({ path: testInfo.outputPath("large-text.png"), fullPage: true });
+    await page.getByRole("button", { name: "Kembalikan font awal" }).click();
+    await expect(page.getByLabel("Ukuran teks")).toHaveValue("120");
+    await page.reload();
+    await toggle(page).click();
+    await expect(page.getByLabel("Ukuran teks")).toHaveValue("120");
+    await page.getByLabel("Ukuran teks").selectOption("100");
+    await expect(page.locator(".prose")).toHaveCSS("font-size", width <= 640 ? "18px" : "19px");
+    await page.evaluate(() => localStorage.setItem("blog-font-size", "invalid-size"));
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-font-size", "100");
+    expect(errors).toEqual([]);
+  });
+}
+
+test("saved text size restores even when hydration scripts fail", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("blog-font-size", "120"));
+  await page.route(/\.js(?:\?|$)/, (route) => route.abort());
+  await page.goto("/posts/tentang-memperhatikan");
+  await expect(page.locator("html")).toHaveAttribute("data-font-size", "120");
+  await expect(page.locator(".prose")).toHaveCSS("font-size", "22.8px");
+  await expect(page.locator(".article-header h1")).toBeVisible();
+});
 
 for (const width of [390, 1440]) {
   for (const theme of ["light", "dark"]) {
@@ -110,6 +175,8 @@ test("blocked storage still allows font and system theme changes", async ({ page
   await page.goto("/");
   await toggle(page).click();
   await page.getByLabel("Font", { exact: true }).selectOption("ibm-plex-sans");
+  await page.getByLabel("Ukuran teks").selectOption("110");
+  await expect(page.locator("html")).toHaveAttribute("data-font-size", "110");
   await expect(page.locator("html")).toHaveAttribute("data-font", "ibm-plex-sans");
   await page.getByLabel("Tema tampilan").selectOption("dark");
   await page.getByLabel("Tema tampilan").selectOption("system");

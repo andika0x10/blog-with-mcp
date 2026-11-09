@@ -36,7 +36,7 @@ export function resolveFont(value: string | null | undefined): FontId {
 export function applyFont(value: string) {
   const id = resolveFont(value);
   // Let the active reveal clean up so the new font can reflow naturally.
-  window.dispatchEvent(new Event("blog-font-change"));
+  window.dispatchEvent(new Event("blog-typography-change"));
   document.documentElement.dataset.font = id;
   for (const [name, setting] of Object.entries(fontProfiles[id])) document.documentElement.style.setProperty(name, setting);
 }

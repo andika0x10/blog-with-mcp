@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { contentService, origin } from "../lib/runtime";
 import { Entrance, MobileMenu, AppearanceControl } from "../components/interactions";
 import { fontBootstrap } from "../lib/fonts";
+import { textSizeBootstrap } from "../lib/text-size";
 import "./fonts.css";
 import "katex/dist/katex.min.css";
 import "./globals.css";
@@ -22,7 +23,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={s.language} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: script + fontBootstrap }} />
+        <script dangerouslySetInnerHTML={{ __html: script + fontBootstrap + textSizeBootstrap }} />
       </head>
       <body>
         <a className="skip-link" href="#main">

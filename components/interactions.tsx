@@ -3,21 +3,22 @@ import { useRef, useState, useEffect, useCallback, type ReactNode } from "react"
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { applyFont, defaultFont, fonts, resolveFont, type FontId } from "../lib/fonts";
+import { applyTextSize, defaultTextSize, resolveTextSize, textSizes, type TextSizeId } from "../lib/text-size";
 // GSAP starts its ticker at module load. Keep that module out of Workers SSR.
 // Animation is optional: a failed chunk must not replace the readable page.
 const PageMotion = dynamic(() => import("./motion").then((m) => m.PageMotion).catch(() => () => null), { ssr: false });
 const MenuMotion = dynamic(() => import("./motion").then((m) => m.MenuMotion).catch(() => () => null), { ssr: false });
 export function Entrance({ children }: { children: ReactNode }) {
-  const [fontChangeRoute, setFontChangeRoute] = useState<string | null>(null);
+  const [typographyChangeRoute, setTypographyChangeRoute] = useState<string | null>(null);
   const scope = useRef<HTMLDivElement>(null),
     pathname = usePathname(),
     query = useSearchParams(),
     restored = useRef(false);
   const route = `${pathname}?${query.toString()}`;
   useEffect(() => {
-    const changed = () => setFontChangeRoute(route);
-    window.addEventListener("blog-font-change", changed);
-    return () => window.removeEventListener("blog-font-change", changed);
+    const changed = () => setTypographyChangeRoute(route);
+    window.addEventListener("blog-typography-change", changed);
+    return () => window.removeEventListener("blog-typography-change", changed);
   }, [route]);
   const arrival = useRef({ route, at: 0, initial: true });
   if (arrival.current.route !== route) arrival.current = { route, at: performance.now(), initial: false };
@@ -37,7 +38,7 @@ export function Entrance({ children }: { children: ReactNode }) {
   }, []);
   return (
     <div ref={scope}>
-      <PageMotion scope={scope} route={route} restored={restored} arrival={arrival.current} skipReveal={fontChangeRoute === route} />
+      <PageMotion scope={scope} route={route} restored={restored} arrival={arrival.current} skipReveal={typographyChangeRoute === route} />
       {children}
     </div>
   );
@@ -45,6 +46,7 @@ export function Entrance({ children }: { children: ReactNode }) {
 export function AppearanceControl({ defaultTheme }: { defaultTheme: string }) {
   const [mode, setMode] = useState(defaultTheme),
     [font, setFont] = useState<FontId>(defaultFont),
+    [textSize, setTextSize] = useState<TextSizeId>(defaultTextSize),
     [open, setOpen] = useState(false),
     [ready, setReady] = useState(false);
   const root = useRef<HTMLDivElement>(null),
@@ -57,6 +59,7 @@ export function AppearanceControl({ defaultTheme }: { defaultTheme: string }) {
       setMode(saved && ["system", "light", "dark"].includes(saved) ? saved : defaultTheme);
     } catch {}
     setFont(resolveFont(document.documentElement.dataset.font));
+    setTextSize(resolveTextSize(document.documentElement.dataset.fontSize));
     setReady(true);
   }, [defaultTheme]);
   useEffect(() => setOpen(false), [pathname, query.toString()]);
@@ -142,6 +145,25 @@ export function AppearanceControl({ defaultTheme }: { defaultTheme: string }) {
             <option key={entry.id} value={entry.id}>
               {entry.name}
               {entry.id === defaultFont ? " (default)" : ""}
+            </option>
+          ))}
+        </select>
+        <label htmlFor="appearance-size">Ukuran teks</label>
+        <select
+          id="appearance-size"
+          value={textSize}
+          onChange={(event) => {
+            const id = resolveTextSize(event.target.value);
+            applyTextSize(id);
+            setTextSize(id);
+            try {
+              localStorage.setItem("blog-font-size", id);
+            } catch {}
+          }}
+        >
+          {textSizes.map((size) => (
+            <option key={size.id} value={size.id}>
+              {size.label}
             </option>
           ))}
         </select>
