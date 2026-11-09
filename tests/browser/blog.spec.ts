@@ -189,3 +189,18 @@ test("failed animation chunks preserve reading and the mobile menu", async ({ pa
   await expect(page.locator("#mobile-menu")).toBeHidden();
   expect(blocked).toBe(true);
 });
+
+
+test("blog task markers render as ordinary nested lists", async ({ page }) => {
+  await page.goto("/uji-responsif");
+  const prose = page.locator(".prose");
+  await expect(prose.locator('input[type="checkbox"], .task-list-item, .contains-task-list')).toHaveCount(0);
+  await expect(prose.locator("li").filter({ hasText: /^Catatan untuk tulisan berikutnya\.$/ })).toBeVisible();
+  await expect(prose.locator("li li")).toHaveText("Detail tambahan.");
+  await expect(prose.locator("li").filter({ hasText: "Catatan yang sudah ditulis." }).first()).toBeVisible();
+  await expect(prose.locator("li").first()).not.toContainText("[ ]");
+  await expect(prose.locator("li").nth(1)).not.toContainText("[x]");
+  await expect(prose.locator("blockquote")).toBeVisible();
+  await expect(prose.locator("table")).toBeVisible();
+  await expect(prose.locator(".hljs-keyword").first()).toBeVisible();
+});

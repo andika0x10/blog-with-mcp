@@ -19,14 +19,17 @@ export const fontProfiles = Object.fromEntries(
     font.id,
     {
       "--visitor-font": `"${font.family}", ${font.serif ? "Georgia, serif" : "ui-sans-serif, system-ui, sans-serif"}`,
-      "--heading-tracking": font.tracking,
+      "--heading-tracking": font.id === defaultFont ? font.tracking : "normal",
+      "--intro-tracking": font.id === defaultFont ? "-0.02em" : "normal",
+      "--archive-tracking": font.id === defaultFont ? "-0.04em" : "normal",
+      "--search-tracking": font.id === defaultFont ? "-0.025em" : "normal",
       "--heading-leading": font.serif ? "1.25" : "1.15",
       "--reading-leading": font.serif ? "1.95" : "1.85",
       "--reading-leading-mobile": font.serif ? "1.9" : "1.8",
-      "--title-tracking": font.id === defaultFont ? "-0.055em" : font.tracking,
-      "--subheading-tracking": font.id === defaultFont ? "-0.045em" : font.tracking,
-      "--section-tracking": font.id === defaultFont ? "-0.06em" : font.tracking,
-      "--minor-heading-tracking": font.id === defaultFont ? "-0.035em" : font.tracking,
+      "--title-tracking": font.id === defaultFont ? "-0.055em" : "normal",
+      "--subheading-tracking": font.id === defaultFont ? "-0.045em" : "normal",
+      "--section-tracking": font.id === defaultFont ? "-0.06em" : "normal",
+      "--minor-heading-tracking": font.id === defaultFont ? "-0.035em" : "normal",
     },
   ])
 );

@@ -97,16 +97,19 @@ function AppearanceControl({ defaultTheme, open, setOpen }: { defaultTheme: stri
         type="button"
         className="text-button"
         disabled={!ready}
+        aria-label="Tampilan"
+        title="Tampilan"
         aria-expanded={open}
         aria-controls="appearance-panel"
         onClick={() => {
           setOpen(!open);
         }}
       >
-        Tampilan{" "}
-        <span className="appearance-chevron" aria-hidden="true">
-          {open ? "−" : "+"}
-        </span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true" focusable="false">
+          <path d="M4 7h3m4 0h9M4 17h9m4 0h3" />
+          <circle cx="9" cy="7" r="2" />
+          <circle cx="15" cy="17" r="2" />
+        </svg>
       </button>
       <section id="appearance-panel" className="appearance-panel" aria-label="Pengaturan tampilan" hidden={!open}>
         <label htmlFor="appearance-theme">Tema tampilan</label>
@@ -139,10 +142,6 @@ function AppearanceControl({ defaultTheme, open, setOpen }: { defaultTheme: stri
             </option>
           ))}
         </select>
-        <p className="font-preview">Menulis tentang hal-hal kecil yang layak diperhatikan.</p>
-        <button type="button" className="text-button font-reset" disabled={font === defaultFont} onClick={() => chooseFont(defaultFont)}>
-          Kembalikan font awal
-        </button>
       </section>
     </div>
   );
@@ -160,6 +159,19 @@ export function SiteHeader({ name, links, defaultTheme }: { name: string; links:
     button = useRef<HTMLButtonElement>(null);
   const pathname = usePathname(),
     query = useSearchParams();
+  useEffect(() => {
+    const dock = root.current;
+    const shell = dock?.closest<HTMLElement>(".site-shell");
+    if (!dock || !shell) return;
+    const measure = () => shell.style.setProperty("--dock-height", `${dock.getBoundingClientRect().height}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(dock);
+    return () => {
+      observer.disconnect();
+      shell.style.removeProperty("--dock-height");
+    };
+  }, []);
   const onReady = useCallback(() => {
     ready.current = true;
   }, []);
@@ -249,7 +261,7 @@ export function SiteHeader({ name, links, defaultTheme }: { name: string; links:
         }
       }}
     >
-      <a href="/" className="site-name">
+      <a href="/" className="site-name" title={name}>
         {name}
       </a>
       <AppearanceControl defaultTheme={defaultTheme} open={appearanceOpen} setOpen={toggleAppearance} />
@@ -270,9 +282,6 @@ export function SiteHeader({ name, links, defaultTheme }: { name: string; links:
         }}
       >
         {open ? "Tutup" : "Menu"}
-        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
-          {open ? <path d="m4 4 10 10M14 4 4 14" /> : <path d="M2 5h14M2 9h14M2 13h14" />}
-        </svg>
       </button>
       <MenuMotion scope={panel} open={open} onReady={onReady} onClosed={onClosed} />
       <div

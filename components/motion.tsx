@@ -146,11 +146,11 @@ export function MenuMotion({ scope, open, onReady, onClosed }: { scope: Scope; o
           }
           const links = panel.querySelectorAll("a");
           const timeline = gsap.timeline({ paused: true });
-          timeline.fromTo(panel, { autoAlpha: 0, y: -8 }, { autoAlpha: 1, y: 0, duration: 0.24, ease: "power3.out" }, 0);
+          timeline.fromTo(panel, { autoAlpha: 0, y: 8 }, { autoAlpha: 1, y: 0, duration: 0.24, ease: "power3.out" }, 0);
           timeline.fromTo(
             links,
             // Keep links in the keyboard order while the opening animation runs.
-            { opacity: 0, y: -4 },
+            { opacity: 0, y: 4 },
             { opacity: 1, y: 0, duration: 0.12, stagger: Math.min(0.035, 0.07 / Math.max(1, links.length - 1)), ease: "power2.out" },
             0.05
           );

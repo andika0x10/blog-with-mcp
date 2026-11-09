@@ -30,7 +30,7 @@ for (const width of widths) {
           await menu.click();
           await expect(page.getByRole("navigation", { name: "Navigasi mobile" })).toBeVisible();
           const after = await page.locator("main").boundingBox();
-          expect(after!.y).toBeGreaterThan(before!.y);
+          expect(after!.y).toBe(before!.y);
           await page.getByRole("button", { name: "Tampilan", exact: true }).click();
           const panel = await page.locator("#appearance-panel").boundingBox();
           expect(panel!.x).toBeGreaterThanOrEqual(0);
@@ -48,8 +48,8 @@ for (const width of widths) {
         }
         if (route === "/uji-responsif") {
           for (const selector of [".table-scroll", ".code-block pre", ".katex-display"]) {
-            await expect(page.locator(selector)).toHaveCount(1);
-            await expect(page.locator(selector)).toHaveCSS("overflow-x", "auto");
+            await expect(page.locator(selector)).toHaveCount(selector === ".code-block pre" ? 4 : 1);
+            for (const element of await page.locator(selector).all()) await expect(element).toHaveCSS("overflow-x", "auto");
           }
         }
         if (route.startsWith("/preview/")) await expect(page.locator(".preview-notice")).toBeVisible();
@@ -91,6 +91,7 @@ test("long names, navigation labels, and footer text wrap at every breakpoint", 
   for (const width of widths) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
+    await expect(page.getByRole("button", { name: "Tampilan", exact: true })).toBeEnabled();
     await page.locator(".site-name").evaluate((element) => (element.textContent = "Nama blog panjang ".repeat(7)));
     if (width < 960) await page.getByRole("button", { name: "Menu", exact: true }).click();
     await page.locator(".header-panel nav").evaluate((element) => {
@@ -105,5 +106,53 @@ test("long names, navigation labels, and footer text wrap at every breakpoint", 
     });
     await page.locator(".site-footer p").evaluate((element) => (element.textContent = "Footer".repeat(100)));
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const dock = (await page.locator(".site-header").boundingBox())!;
+    expect(dock.height).toBeLessThanOrEqual(120);
+    expect((await page.locator(".site-name").boundingBox())!.width).toBeGreaterThan(40);
+    if (width < 960) {
+      const panel = (await page.locator("#mobile-menu").boundingBox())!;
+      expect(panel.y).toBeGreaterThanOrEqual(12);
+      await page.locator("#mobile-menu a").last().scrollIntoViewIfNeeded();
+      await expect(page.locator("#mobile-menu a").last()).toBeInViewport();
+    } else {
+      await page.locator(".header-panel nav a").last().scrollIntoViewIfNeeded();
+      await expect(page.locator(".header-panel nav a").last()).toBeInViewport();
+    }
   }
 });
+
+for (const width of widths) {
+  test(`${width}px: dock stays fixed and panels fit a short viewport`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 480 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: "Tampilan", exact: true })).toBeEnabled();
+    const dock = page.locator(".site-header");
+    await expect(dock).toHaveCSS("position", "fixed");
+    const before = (await dock.boundingBox())!;
+    expect(before.x).toBeGreaterThanOrEqual(12);
+    expect(before.x + before.width).toBeLessThanOrEqual(width - 12);
+    expect(before.height).toBeLessThanOrEqual(120);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const after = (await dock.boundingBox())!;
+    expect(after.y).toBeCloseTo(before.y);
+    const footer = (await page.locator(".site-footer").boundingBox())!;
+    // The browser rounds the final scroll position to a device pixel.
+    expect(footer.y + footer.height).toBeLessThanOrEqual(after.y - 23);
+    if (width < 960) {
+      await page.getByRole("button", { name: "Menu", exact: true }).click();
+      const menu = (await page.locator("#mobile-menu").boundingBox())!;
+      expect(menu.y).toBeGreaterThanOrEqual(12);
+      expect(menu.y + menu.height).toBeLessThanOrEqual(after.y - 9);
+    }
+    await page.getByRole("button", { name: "Tampilan", exact: true }).click();
+    const panel = (await page.locator("#appearance-panel").boundingBox())!;
+    expect(panel.y).toBeGreaterThanOrEqual(12);
+    expect(panel.y + panel.height).toBeLessThanOrEqual(after.y - 9);
+    expect(panel.x).toBeGreaterThanOrEqual(12);
+    expect(panel.x + panel.width).toBeLessThanOrEqual(width - 12);
+    await page.getByLabel("Font", { exact: true }).selectOption("literata");
+    await page.getByLabel("Font", { exact: true }).scrollIntoViewIfNeeded();
+    await expect(page.getByLabel("Font", { exact: true })).toBeInViewport();
+  });
+}

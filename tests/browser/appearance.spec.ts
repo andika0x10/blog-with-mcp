@@ -70,18 +70,29 @@ for (const width of [390, 1440]) {
                 .evaluate((el) => getComputedStyle(el).fontFamily)
             : null;
         await openAppearance(page);
+        await expect(page.locator(".font-preview, .font-reset")).toHaveCount(0);
         for (const font of fonts) {
           await page.getByLabel("Font", { exact: true }).selectOption(font.id);
           await page.evaluate(() => document.fonts.ready);
           await expect(page.locator("html")).toHaveAttribute("data-font", font.id);
           await expect(page.locator("body")).toHaveCSS("font-family", new RegExp(font.family));
-          expect(await page.evaluate((family) => document.fonts.check(`400 18px "${family}"`), font.family)).toBe(true);
+          expect(await page.evaluate((family) => [...document.fonts].some((face) => face.family.replace(/["']/g, "") === family && face.status === "loaded"), font.family)).toBe(true);
+          await expect(page.getByLabel("Font", { exact: true })).toHaveCSS("font-family", new RegExp(font.family));
+          await expect(page.locator("main h1").first()).toHaveCSS("font-family", new RegExp(font.family));
+          if (font.id !== "public-sans") {
+            await expect(page.locator("main h1").first()).toHaveCSS("letter-spacing", "normal");
+          }
           expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
           await expect(page.getByRole("heading").first()).toBeVisible();
           await expect(page.locator(".motion-line")).toHaveCount(0);
           const panel = await page.locator("#appearance-panel").boundingBox();
           expect(panel!.x).toBeGreaterThanOrEqual(0);
           expect(panel!.x + panel!.width).toBeLessThanOrEqual(width);
+          if (font.id === "public-sans") {
+            await page.keyboard.press("Escape");
+            await page.screenshot({ path: testInfo.outputPath(`${route === "/" ? "home" : "article"}-public-sans.png`), fullPage: true });
+            await openAppearance(page);
+          }
           if (codeFont) {
             await expect(page.locator("pre code").first()).toHaveCSS("font-family", codeFont);
             await expect(page.locator(".katex .mord").first()).toHaveCSS("font-family", mathFont!);
@@ -107,7 +118,7 @@ test("font persists, resets independently of theme, and restores before hydratio
   await page.getByRole("link", { name: "Tentang memperhatikan hal-hal kecil", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-font", "source-serif-4");
   await openAppearance(page);
-  await page.getByRole("button", { name: "Kembalikan font awal" }).click();
+  await page.getByLabel("Font", { exact: true }).selectOption("public-sans");
   await expect(page.locator("html")).toHaveAttribute("data-font", "public-sans");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   expect(await page.evaluate(() => localStorage.getItem("blog-font"))).toBe("public-sans");
@@ -173,7 +184,64 @@ test("only used fonts download and failed fonts keep content readable", async ({
   await page.route("**/*source-serif-4*.woff2", (route) => route.abort());
   await page.getByLabel("Font", { exact: true }).selectOption("source-serif-4");
   await page.evaluate(() => document.fonts.ready);
-  await expect(page.locator(".font-preview")).toBeVisible();
+  await expect(page.getByLabel("Font", { exact: true })).toHaveValue("source-serif-4");
   await expect(page.getByRole("heading").first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+
+test("saved font renders before hydration when application scripts are blocked", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("blog-font", "source-serif-4"));
+  await page.route("**/*", (route) => route.request().resourceType() === "script" ? route.abort() : route.continue());
+  await page.goto("/posts/tentang-memperhatikan");
+  await expect(page.locator(".prose")).toHaveCSS("font-family", /Source Serif 4 Variable/);
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page.locator("html")).toHaveAttribute("data-font", "source-serif-4");
+  await expect(page.getByRole("heading").first()).toBeVisible();
+});
+
+test("serif and sans choices use different glyph metrics", async ({ page }) => {
+  await page.goto("/posts/tentang-memperhatikan");
+  await openAppearance(page);
+  const widths: number[] = [];
+  for (const font of ["public-sans", "source-serif-4"]) {
+    await page.getByLabel("Font", { exact: true }).selectOption(font);
+    await page.evaluate(() => document.fonts.ready);
+    widths.push(await page.locator(".prose").evaluate((element) => {
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d")!;
+      context.font = `400 19px ${getComputedStyle(element).fontFamily}`;
+      return context.measureText("Memperhatikan huruf kecil, garis, dan ruang.").width;
+    }));
+  }
+  expect(Math.abs(widths[0] - widths[1])).toBeGreaterThan(1);
+});
+
+test("light syntax palette covers JavaScript, HTML, and CSS without changing dark mode", async ({ page, context }, testInfo) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/uji-responsif");
+  const js = page.locator("code.language-javascript");
+  const html = page.locator("code.language-html");
+  const css = page.locator("code.language-css");
+  await expect(js.locator(".hljs-keyword").first()).toHaveCSS("color", "rgb(1, 86, 146)");
+  await expect(js.locator(".hljs-title").first()).toHaveCSS("color", "rgb(183, 85, 1)");
+  await expect(js.locator(".hljs-string").first()).toHaveCSS("color", "rgb(84, 121, 13)");
+  await expect(js.locator(".hljs-comment").first()).toHaveCSS("color", "rgb(101, 110, 119)");
+  await expect(html.locator(".hljs-name").first()).toHaveCSS("color", "rgb(183, 85, 1)");
+  await expect(html.locator(".hljs-attr").first()).toHaveCSS("color", "rgb(1, 86, 146)");
+  await expect(css.locator(".hljs-selector-class")).toHaveCSS("color", "rgb(1, 86, 146)");
+  await expect(css.locator(".hljs-attribute").first()).toHaveCSS("color", "rgb(128, 51, 120)");
+  await expect(page.locator(".code-block pre").first()).toHaveCSS("padding-top", "48px");
+  await page.screenshot({ path: testInfo.outputPath("syntax-light.png"), fullPage: true });
+  const block = js.locator("../..");
+  const code = await js.textContent();
+  await block.getByRole("button", { name: "Salin kode" }).click();
+  await expect(block.getByRole("button", { name: "Salin kode" })).toHaveText("Tersalin");
+  expect((await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n")).toBe(code?.replace(/\r\n/g, "\n"));
+  await openAppearance(page);
+  await page.getByLabel("Tema tampilan").selectOption("dark");
+  await expect(js.locator(".hljs-keyword").first()).toHaveCSS("color", "rgb(200, 162, 231)");
+  await expect(js.locator(".hljs-string").first()).toHaveCSS("color", "rgb(155, 199, 174)");
+  await expect(js.locator(".hljs-title").first()).toHaveCSS("color", "rgb(232, 232, 232)");
 });

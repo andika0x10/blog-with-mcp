@@ -5,6 +5,18 @@ import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
 import { CodeBlock } from "./interactions";
 import { Children, isValidElement, type ReactNode } from "react";
+import type { Root, RootContent } from "mdast";
+
+// Blog lists remain prose, including older content written with task markers.
+function remarkBlogLists() {
+  return (tree: Root) => {
+    const visit = (node: Root | RootContent) => {
+      if (node.type === "listItem") node.checked = null;
+      if ("children" in node) node.children.forEach(visit);
+    };
+    visit(tree);
+  };
+}
 function text(children: ReactNode): string {
   return Children.toArray(children)
     .map((c) => (isValidElement<{ children?: ReactNode }>(c) ? text(c.props.children) : String(c)))
@@ -29,10 +41,10 @@ export function Markdown({ source }: { source: string }) {
     <div className="prose">
       <ReactMarkdown
         skipHtml
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={[remarkGfm, remarkMath, remarkBlogLists]}
         rehypePlugins={[
           [rehypeKatex, { strict: false, trust: false }],
-        [rehypeHighlight, { detect: false, ignoreMissing: true }],
+          [rehypeHighlight, { detect: false, ignoreMissing: true }],
         ]}
         components={{
           pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,

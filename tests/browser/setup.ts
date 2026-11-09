@@ -23,12 +23,29 @@ export default async function setup() {
 
 ## Tabel dan kode
 
+- [ ] Catatan untuk tulisan berikutnya.
+- [x] Catatan yang sudah ditulis.
+  - [ ] Detail tambahan.
+
 | ${Array.from({ length: 8 }, (_, i) => "Kolom " + i).join(" | ")} |
 | ${Array(8).fill("---").join(" | ")} |
 | ${Array(8).fill("Data yang perlu tetap terbaca").join(" | ")} |
 
 \`\`\`typescript
 const panjang = "${"x".repeat(180)}";
+\`\`\`
+
+\`\`\`javascript
+// Contoh sintaks berwarna
+function sapa(nama) { return "Halo " + nama + 42; }
+\`\`\`
+
+\`\`\`html
+<a href="/arsip">Arsip</a>
+\`\`\`
+
+\`\`\`css
+.catatan { color: red; margin: 12px; }
 \`\`\`
 
 $$
