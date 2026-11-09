@@ -37,11 +37,11 @@ for (const width of [320, 1440]) {
     await openAppearance(page);
     await expect(page.getByRole("spinbutton")).toHaveCount(0);
     await expect(page.getByText("Ukuran teks (px)", { exact: true })).toHaveCount(0);
-    await expect(page.locator(".prose")).toHaveCSS("font-size", width < 641 ? "18px" : "19px");
+    await expect(page.locator(".prose")).toHaveCSS("font-size", width < 641 ? "19px" : "20px");
     await page.getByLabel("Font", { exact: true }).selectOption("literata");
-    await expect(page.locator(".prose")).toHaveCSS("font-size", width < 641 ? "18px" : "19px");
+    await expect(page.locator(".prose")).toHaveCSS("font-size", width < 641 ? "19px" : "20px");
     await page.reload();
-    await expect(page.locator(".prose")).toHaveCSS("font-size", width < 641 ? "18px" : "19px");
+    await expect(page.locator(".prose")).toHaveCSS("font-size", width < 641 ? "19px" : "20px");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }
@@ -212,7 +212,8 @@ test("serif and sans choices use different glyph metrics", async ({ page }) => {
       await page.locator(".prose").evaluate((element) => {
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d")!;
-        context.font = `400 19px ${getComputedStyle(element).fontFamily}`;
+        const style = getComputedStyle(element);
+        context.font = `400 ${style.fontSize} ${style.fontFamily}`;
         return context.measureText("Memperhatikan huruf kecil, garis, dan ruang.").width;
       })
     );
@@ -235,7 +236,7 @@ test("light syntax palette covers JavaScript, HTML, and CSS without changing dar
   await expect(html.locator(".hljs-attr").first()).toHaveCSS("color", "rgb(1, 86, 146)");
   await expect(css.locator(".hljs-selector-class")).toHaveCSS("color", "rgb(1, 86, 146)");
   await expect(css.locator(".hljs-attribute").first()).toHaveCSS("color", "rgb(128, 51, 120)");
-  await expect(page.locator(".code-block pre").first()).toHaveCSS("padding-top", "48px");
+  await expect(page.locator(".code-block pre").first()).toHaveCSS("padding-top", "64px");
   await page.screenshot({ path: testInfo.outputPath("syntax-light.png"), fullPage: true });
   const block = js.locator("../..");
   const code = await js.textContent();

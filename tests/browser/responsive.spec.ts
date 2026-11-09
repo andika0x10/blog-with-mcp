@@ -43,8 +43,9 @@ for (const width of widths) {
           await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeHidden();
           await expect(page.getByRole("navigation", { name: "Navigasi utama" })).toBeVisible();
         }
-        if (["/", "/uji-responsif"].includes(route)) {
-          await page.screenshot({ path: info.outputPath(route === "/" ? "home.png" : "content.png"), fullPage: true });
+        if (!route.includes("?")) {
+          const name = route === "/" ? "home" : route.startsWith("/preview/") ? "preview" : route.replaceAll("/", "-").slice(1);
+          await page.screenshot({ path: info.outputPath(`${name}.png`), fullPage: true });
         }
         if (route === "/uji-responsif") {
           for (const selector of [".table-scroll", ".code-block pre", ".katex-display"]) {
