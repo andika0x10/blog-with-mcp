@@ -61,12 +61,14 @@ describe("OAuth and MCP", () => {
     const f = await flow();
     expect(f.login.headers.get("set-cookie")).toContain("HttpOnly");
     expect(f.login.headers.get("set-cookie")).toContain("Secure");
+    expect(f.login.headers.get("referrer-policy")).toBe("same-origin");
     const approve = await send(f.path, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: base, Cookie: cookie(f.login), "CF-Connecting-IP": "198.51.100.10" },
       body: new URLSearchParams({ csrf: csrf(f.loginHtml), username: env.ADMIN_USERNAME, password: env.ADMIN_PASSWORD }).toString(),
     });
     expect(approve.status).toBe(200);
+    expect(approve.headers.get("referrer-policy")).toBe("same-origin");
     const html = await approve.text();
     expect(html).toContain("Izinkan akses");
     expect(html).toContain("claude.ai");
@@ -136,6 +138,7 @@ describe("OAuth and MCP", () => {
     const init = { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: base, Cookie: cookie(f.login) }, body: "csrf=invalid" };
     expect((await send(f.path, init)).status).toBe(403);
     expect((await send(f.path, { ...init, headers: { ...init.headers, Origin: "https://evil.example" } })).status).toBe(403);
+    expect((await send(f.path, { ...init, headers: { ...init.headers, Origin: "null" } })).status).toBe(403);
   });
   it("rejects an expired browser login session", async () => {
     const f = await flow(),

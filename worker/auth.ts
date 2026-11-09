@@ -42,7 +42,8 @@ function page(body: string, status = 200, cookie?: string) {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",
-        "Referrer-Policy": "no-referrer",
+        // Form POSTs need a real Origin for the same-origin check below.
+        "Referrer-Policy": "same-origin",
         "X-Frame-Options": "DENY",
         "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
         ...(cookie ? { "Set-Cookie": cookie } : {}),

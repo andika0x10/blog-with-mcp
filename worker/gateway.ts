@@ -52,7 +52,8 @@ export function createBlogWorker(siteHandler: SiteHandler) {
         if (path.startsWith("/preview/") || path === "/authorize") {
           secured.headers.set("Cache-Control", "private, no-store");
           secured.headers.set("X-Robots-Tag", "noindex, nofollow");
-          secured.headers.set("Referrer-Policy", "no-referrer");
+          // Keep the form's Origin while withholding OAuth URLs from other sites.
+          secured.headers.set("Referrer-Policy", path === "/authorize" ? "same-origin" : "no-referrer");
         } else if (!path.startsWith("/media/") && !path.startsWith("/_next/")) secured.headers.set("Cache-Control", "no-store");
         return secured;
       } catch (error) {
