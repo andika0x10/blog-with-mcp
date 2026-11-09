@@ -1,4 +1,4 @@
-# Blog dengan MCP
+# Blog with MCP
 
 Blog personal berbasis vinext, React, TypeScript, Tailwind CSS, dan Cloudflare Workers. Konten dikelola lewat remote MCP dari Claude.ai, tanpa dashboard admin.
 
