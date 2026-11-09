@@ -190,7 +190,6 @@ test("failed animation chunks preserve reading and the mobile menu", async ({ pa
   expect(blocked).toBe(true);
 });
 
-
 test("blog task markers render as ordinary nested lists", async ({ page }) => {
   await page.goto("/uji-responsif");
   const prose = page.locator(".prose");

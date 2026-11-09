@@ -76,7 +76,9 @@ for (const width of [390, 1440]) {
           await page.evaluate(() => document.fonts.ready);
           await expect(page.locator("html")).toHaveAttribute("data-font", font.id);
           await expect(page.locator("body")).toHaveCSS("font-family", new RegExp(font.family));
-          expect(await page.evaluate((family) => [...document.fonts].some((face) => face.family.replace(/["']/g, "") === family && face.status === "loaded"), font.family)).toBe(true);
+          expect(await page.evaluate((family) => [...document.fonts].some((face) => face.family.replace(/["']/g, "") === family && face.status === "loaded"), font.family)).toBe(
+            true
+          );
           await expect(page.getByLabel("Font", { exact: true })).toHaveCSS("font-family", new RegExp(font.family));
           await expect(page.locator("main h1").first()).toHaveCSS("font-family", new RegExp(font.family));
           if (font.id !== "public-sans") {
@@ -189,10 +191,9 @@ test("only used fonts download and failed fonts keep content readable", async ({
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-
 test("saved font renders before hydration when application scripts are blocked", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("blog-font", "source-serif-4"));
-  await page.route("**/*", (route) => route.request().resourceType() === "script" ? route.abort() : route.continue());
+  await page.route("**/*", (route) => (route.request().resourceType() === "script" ? route.abort() : route.continue()));
   await page.goto("/posts/tentang-memperhatikan");
   await expect(page.locator(".prose")).toHaveCSS("font-family", /Source Serif 4 Variable/);
   await page.evaluate(() => document.fonts.ready);
@@ -207,12 +208,14 @@ test("serif and sans choices use different glyph metrics", async ({ page }) => {
   for (const font of ["public-sans", "source-serif-4"]) {
     await page.getByLabel("Font", { exact: true }).selectOption(font);
     await page.evaluate(() => document.fonts.ready);
-    widths.push(await page.locator(".prose").evaluate((element) => {
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d")!;
-      context.font = `400 19px ${getComputedStyle(element).fontFamily}`;
-      return context.measureText("Memperhatikan huruf kecil, garis, dan ruang.").width;
-    }));
+    widths.push(
+      await page.locator(".prose").evaluate((element) => {
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d")!;
+        context.font = `400 19px ${getComputedStyle(element).fontFamily}`;
+        return context.measureText("Memperhatikan huruf kecil, garis, dan ruang.").width;
+      })
+    );
   }
   expect(Math.abs(widths[0] - widths[1])).toBeGreaterThan(1);
 });
