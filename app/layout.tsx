@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { contentService, origin } from "../lib/runtime";
-import { Entrance, MobileMenu, ThemeControl } from "../components/interactions";
-import "@fontsource-variable/public-sans";
+import { Entrance, MobileMenu, AppearanceControl } from "../components/interactions";
+import { fontBootstrap } from "../lib/fonts";
+import "./fonts.css";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 export const dynamic = "force-dynamic";
@@ -17,11 +18,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const s = await contentService().settings();
-  const script = `(function(){var d=${JSON.stringify(s.defaultTheme)};try{d=localStorage.getItem('blog-theme')||d}catch(e){}var m=matchMedia('(prefers-color-scheme: dark)');function a(){document.documentElement.dataset.theme=d==='dark'||d==='system'&&m.matches?'dark':'light'}a();m.addEventListener('change',function(){try{d=localStorage.getItem('blog-theme')||${JSON.stringify(s.defaultTheme)}}catch(e){}a()})})();`;
+  const script = `(function(){var d=${JSON.stringify(s.defaultTheme)};try{d=localStorage.getItem('blog-theme')||d}catch(e){}var m=matchMedia('(prefers-color-scheme: dark)');function a(){document.documentElement.dataset.themeMode=d;document.documentElement.dataset.theme=d==='dark'||d==='system'&&m.matches?'dark':'light'}a();m.addEventListener('change',function(){d=document.documentElement.dataset.themeMode||${JSON.stringify(s.defaultTheme)};a()})})();`;
   return (
     <html lang={s.language} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: script }} />
+        <script dangerouslySetInnerHTML={{ __html: script + fontBootstrap }} />
       </head>
       <body>
         <a className="skip-link" href="#main">
@@ -40,7 +41,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   </a>
                 ))}
               </nav>
-              <ThemeControl defaultTheme={s.defaultTheme} />
+              <AppearanceControl defaultTheme={s.defaultTheme} />
               <MobileMenu links={s.navbar} />
             </div>
           </header>

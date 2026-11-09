@@ -1,0 +1,22 @@
+/* Font faces are self-hosted by Vite; unused families are not requested. */
+@import "@fontsource-variable/public-sans/wght.css";
+@import "@fontsource-variable/public-sans/wght-italic.css";
+@import "@fontsource-variable/source-sans-3/wght.css";
+@import "@fontsource-variable/source-sans-3/wght-italic.css";
+@import "@fontsource-variable/ibm-plex-sans/wght.css";
+@import "@fontsource-variable/ibm-plex-sans/wght-italic.css";
+@import "@fontsource-variable/dm-sans/wght.css";
+@import "@fontsource-variable/dm-sans/wght-italic.css";
+@import "@fontsource-variable/manrope/wght.css";
+@import "@fontsource/lato/latin-400.css";
+@import "@fontsource/lato/latin-400-italic.css";
+@import "@fontsource/lato/latin-700.css";
+@import "@fontsource/lato/latin-700-italic.css";
+@import "@fontsource-variable/noto-sans/wght.css";
+@import "@fontsource-variable/noto-sans/wght-italic.css";
+@import "@fontsource-variable/atkinson-hyperlegible-next/wght.css";
+@import "@fontsource-variable/atkinson-hyperlegible-next/wght-italic.css";
+@import "@fontsource-variable/source-serif-4/wght.css";
+@import "@fontsource-variable/source-serif-4/wght-italic.css";
+@import "@fontsource-variable/literata/wght.css";
+@import "@fontsource-variable/literata/wght-italic.css";

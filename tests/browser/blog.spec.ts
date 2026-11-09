@@ -45,6 +45,7 @@ test("search, feeds, keyboard focus, theme persistence, and reduced motion", asy
   await page.getByRole("searchbox").fill("roti");
   await page.getByRole("button", { name: "Cari", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Tentang memperhatikan hal-hal kecil" })).toBeVisible();
+  await page.getByRole("button", { name: "Tampilan", exact: true }).click();
   await page.getByLabel("Tema tampilan").selectOption("dark");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.reload();

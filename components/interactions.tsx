@@ -2,16 +2,23 @@
 import { useRef, useState, useEffect, useCallback, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
+import { applyFont, defaultFont, fonts, resolveFont, type FontId } from "../lib/fonts";
 // GSAP starts its ticker at module load. Keep that module out of Workers SSR.
 // Animation is optional: a failed chunk must not replace the readable page.
 const PageMotion = dynamic(() => import("./motion").then((m) => m.PageMotion).catch(() => () => null), { ssr: false });
 const MenuMotion = dynamic(() => import("./motion").then((m) => m.MenuMotion).catch(() => () => null), { ssr: false });
 export function Entrance({ children }: { children: ReactNode }) {
+  const [fontChangeRoute, setFontChangeRoute] = useState<string | null>(null);
   const scope = useRef<HTMLDivElement>(null),
     pathname = usePathname(),
     query = useSearchParams(),
     restored = useRef(false);
   const route = `${pathname}?${query.toString()}`;
+  useEffect(() => {
+    const changed = () => setFontChangeRoute(route);
+    window.addEventListener("blog-font-change", changed);
+    return () => window.removeEventListener("blog-font-change", changed);
+  }, [route]);
   const arrival = useRef({ route, at: 0, initial: true });
   if (arrival.current.route !== route) arrival.current = { route, at: performance.now(), initial: false };
   useEffect(() => {
@@ -30,42 +37,120 @@ export function Entrance({ children }: { children: ReactNode }) {
   }, []);
   return (
     <div ref={scope}>
-      <PageMotion scope={scope} route={route} restored={restored} arrival={arrival.current} />
+      <PageMotion scope={scope} route={route} restored={restored} arrival={arrival.current} skipReveal={fontChangeRoute === route} />
       {children}
     </div>
   );
 }
-export function ThemeControl({ defaultTheme }: { defaultTheme: string }) {
+export function AppearanceControl({ defaultTheme }: { defaultTheme: string }) {
   const [mode, setMode] = useState(defaultTheme),
+    [font, setFont] = useState<FontId>(defaultFont),
+    [open, setOpen] = useState(false),
     [ready, setReady] = useState(false);
+  const root = useRef<HTMLDivElement>(null),
+    button = useRef<HTMLButtonElement>(null);
+  const pathname = usePathname(),
+    query = useSearchParams();
   useEffect(() => {
     try {
-      setMode(localStorage.getItem("blog-theme") ?? defaultTheme);
+      const saved = localStorage.getItem("blog-theme");
+      setMode(saved && ["system", "light", "dark"].includes(saved) ? saved : defaultTheme);
     } catch {}
+    setFont(resolveFont(document.documentElement.dataset.font));
     setReady(true);
   }, [defaultTheme]);
+  useEffect(() => setOpen(false), [pathname, query.toString()]);
+  useEffect(() => {
+    const close = () => setOpen(false);
+    window.addEventListener("blog-menu-open", close);
+    return () => window.removeEventListener("blog-menu-open", close);
+  }, []);
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const focusOutside = (event: FocusEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("focusin", focusOutside);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("focusin", focusOutside);
+    };
+  }, [open]);
+  const chooseFont = (value: string) => {
+    const id = resolveFont(value);
+    applyFont(id);
+    setFont(id);
+    try {
+      localStorage.setItem("blog-font", id);
+    } catch {}
+  };
   return (
-    <label className="theme-control">
-      <span className="sr-only">Tema tampilan</span>
-      <select
-        aria-label="Tema tampilan"
+    <div
+      className="appearance-control"
+      ref={root}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && open) {
+          event.preventDefault();
+          setOpen(false);
+          button.current?.focus();
+        }
+      }}
+    >
+      <button
+        ref={button}
+        type="button"
+        className="text-button"
         disabled={!ready}
-        value={mode}
-        onChange={(e) => {
-          const value = e.target.value;
-          setMode(value);
-          try {
-            localStorage.setItem("blog-theme", value);
-          } catch {}
-          const dark = value === "dark" || (value === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-          document.documentElement.dataset.theme = dark ? "dark" : "light";
+        aria-expanded={open}
+        aria-controls="appearance-panel"
+        onClick={() => {
+          if (!open) window.dispatchEvent(new Event("blog-appearance-open"));
+          setOpen(!open);
         }}
       >
-        <option value="system">Sistem</option>
-        <option value="light">Terang</option>
-        <option value="dark">Gelap</option>
-      </select>
-    </label>
+        Tampilan
+      </button>
+      <section id="appearance-panel" className="appearance-panel" aria-label="Pengaturan tampilan" hidden={!open}>
+        <label htmlFor="appearance-theme">Tema tampilan</label>
+        <select
+          id="appearance-theme"
+          aria-label="Tema tampilan"
+          disabled={!ready}
+          value={mode}
+          onChange={(e) => {
+            const value = e.target.value;
+            setMode(value);
+            document.documentElement.dataset.themeMode = value;
+            try {
+              localStorage.setItem("blog-theme", value);
+            } catch {}
+            const dark = value === "dark" || (value === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+            document.documentElement.dataset.theme = dark ? "dark" : "light";
+          }}
+        >
+          <option value="system">Sistem</option>
+          <option value="light">Terang</option>
+          <option value="dark">Gelap</option>
+        </select>
+        <label htmlFor="appearance-font">Font</label>
+        <select id="appearance-font" value={font} onChange={(event) => chooseFont(event.target.value)}>
+          {fonts.map((entry) => (
+            <option key={entry.id} value={entry.id}>
+              {entry.name}
+              {entry.id === defaultFont ? " (default)" : ""}
+            </option>
+          ))}
+        </select>
+        <p className="font-preview">Menulis tentang hal-hal kecil yang layak diperhatikan.</p>
+        <button type="button" className="text-button font-reset" disabled={font === defaultFont} onClick={() => chooseFont(defaultFont)}>
+          Kembalikan font awal
+        </button>
+      </section>
+    </div>
   );
 }
 export function MobileMenu({ links }: { links: { label: string; href: string }[] }) {
@@ -78,6 +163,14 @@ export function MobileMenu({ links }: { links: { label: string; href: string }[]
   const pathname = usePathname(),
     query = useSearchParams();
   useEffect(() => setInteractive(true), []);
+  useEffect(() => {
+    const hide = () => {
+      setOpen(false);
+      setVisible(false);
+    };
+    window.addEventListener("blog-appearance-open", hide);
+    return () => window.removeEventListener("blog-appearance-open", hide);
+  }, []);
   const onReady = useCallback(() => {
     ready.current = true;
   }, []);
@@ -113,6 +206,7 @@ export function MobileMenu({ links }: { links: { label: string; href: string }[]
         onClick={() => {
           if (open) close();
           else {
+            window.dispatchEvent(new Event("blog-menu-open"));
             setVisible(true);
             setOpen(true);
           }

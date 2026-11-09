@@ -9,7 +9,19 @@ type Scope = RefObject<HTMLDivElement | null>;
 const conditions = { mobile: "(max-width: 640px)", desktop: "(min-width: 641px)", reduce: "(prefers-reduced-motion: reduce)" };
 
 /** Browser-only: server-rendered content never depends on animation to be visible. */
-export function PageMotion({ scope, route, restored, arrival }: { scope: Scope; route: string; restored: RefObject<boolean>; arrival: { at: number; initial: boolean } }) {
+export function PageMotion({
+  scope,
+  route,
+  restored,
+  arrival,
+  skipReveal,
+}: {
+  scope: Scope;
+  route: string;
+  restored: RefObject<boolean>;
+  arrival: { at: number; initial: boolean };
+  skipReveal: boolean;
+}) {
   const started = useRef(new WeakMap<Element, string>());
   useGSAP(
     () => {
@@ -68,6 +80,7 @@ export function PageMotion({ scope, route, restored, arrival }: { scope: Scope; 
             const bounds = heading.getBoundingClientRect();
             if (
               !context.conditions?.reduce &&
+              !skipReveal &&
               !restored.current &&
               !(arrival.initial && navigation?.type === "back_forward") &&
               !location.hash &&
@@ -105,7 +118,7 @@ export function PageMotion({ scope, route, restored, arrival }: { scope: Scope; 
       );
       return () => mm.revert();
     },
-    { scope, dependencies: [route], revertOnUpdate: true }
+    { scope, dependencies: [route, skipReveal], revertOnUpdate: true }
   );
   return null;
 }
@@ -136,8 +149,9 @@ export function MenuMotion({ scope, open, onReady, onClosed }: { scope: Scope; o
           timeline.fromTo(panel, { autoAlpha: 0, y: -8 }, { autoAlpha: 1, y: 0, duration: 0.24, ease: "power3.out" }, 0);
           timeline.fromTo(
             links,
-            { autoAlpha: 0, y: -4 },
-            { autoAlpha: 1, y: 0, duration: 0.12, stagger: Math.min(0.035, 0.07 / Math.max(1, links.length - 1)), ease: "power2.out" },
+            // Keep links in the keyboard order while the opening animation runs.
+            { opacity: 0, y: -4 },
+            { opacity: 1, y: 0, duration: 0.12, stagger: Math.min(0.035, 0.07 / Math.max(1, links.length - 1)), ease: "power2.out" },
             0.05
           );
           let playback: gsap.core.Tween | undefined;
