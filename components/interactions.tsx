@@ -3,7 +3,6 @@ import { useRef, useState, useEffect, useCallback, type ReactNode } from "react"
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { applyFont, defaultFont, fonts, resolveFont, type FontId } from "../lib/fonts";
-import { applyTextSize, defaultTextSize, resolveTextSize, textSizes, type TextSizeId } from "../lib/text-size";
 // GSAP starts its ticker at module load. Keep that module out of Workers SSR.
 // Animation is optional: a failed chunk must not replace the readable page.
 const PageMotion = dynamic(() => import("./motion").then((m) => m.PageMotion).catch(() => () => null), { ssr: false });
@@ -43,31 +42,20 @@ export function Entrance({ children }: { children: ReactNode }) {
     </div>
   );
 }
-export function AppearanceControl({ defaultTheme }: { defaultTheme: string }) {
+function AppearanceControl({ defaultTheme, open, setOpen }: { defaultTheme: string; open: boolean; setOpen: (value: boolean) => void }) {
   const [mode, setMode] = useState(defaultTheme),
     [font, setFont] = useState<FontId>(defaultFont),
-    [textSize, setTextSize] = useState<TextSizeId>(defaultTextSize),
-    [open, setOpen] = useState(false),
     [ready, setReady] = useState(false);
   const root = useRef<HTMLDivElement>(null),
     button = useRef<HTMLButtonElement>(null);
-  const pathname = usePathname(),
-    query = useSearchParams();
   useEffect(() => {
     try {
       const saved = localStorage.getItem("blog-theme");
       setMode(saved && ["system", "light", "dark"].includes(saved) ? saved : defaultTheme);
     } catch {}
     setFont(resolveFont(document.documentElement.dataset.font));
-    setTextSize(resolveTextSize(document.documentElement.dataset.fontSize));
     setReady(true);
   }, [defaultTheme]);
-  useEffect(() => setOpen(false), [pathname, query.toString()]);
-  useEffect(() => {
-    const close = () => setOpen(false);
-    window.addEventListener("blog-menu-open", close);
-    return () => window.removeEventListener("blog-menu-open", close);
-  }, []);
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
@@ -82,7 +70,7 @@ export function AppearanceControl({ defaultTheme }: { defaultTheme: string }) {
       document.removeEventListener("pointerdown", outside);
       document.removeEventListener("focusin", focusOutside);
     };
-  }, [open]);
+  }, [open, setOpen]);
   const chooseFont = (value: string) => {
     const id = resolveFont(value);
     applyFont(id);
@@ -98,6 +86,7 @@ export function AppearanceControl({ defaultTheme }: { defaultTheme: string }) {
       onKeyDown={(event) => {
         if (event.key === "Escape" && open) {
           event.preventDefault();
+          event.stopPropagation();
           setOpen(false);
           button.current?.focus();
         }
@@ -111,11 +100,13 @@ export function AppearanceControl({ defaultTheme }: { defaultTheme: string }) {
         aria-expanded={open}
         aria-controls="appearance-panel"
         onClick={() => {
-          if (!open) window.dispatchEvent(new Event("blog-appearance-open"));
           setOpen(!open);
         }}
       >
-        Tampilan
+        Tampilan{" "}
+        <span className="appearance-chevron" aria-hidden="true">
+          {open ? "−" : "+"}
+        </span>
       </button>
       <section id="appearance-panel" className="appearance-panel" aria-label="Pengaturan tampilan" hidden={!open}>
         <label htmlFor="appearance-theme">Tema tampilan</label>
@@ -148,25 +139,6 @@ export function AppearanceControl({ defaultTheme }: { defaultTheme: string }) {
             </option>
           ))}
         </select>
-        <label htmlFor="appearance-size">Ukuran teks</label>
-        <select
-          id="appearance-size"
-          value={textSize}
-          onChange={(event) => {
-            const id = resolveTextSize(event.target.value);
-            applyTextSize(id);
-            setTextSize(id);
-            try {
-              localStorage.setItem("blog-font-size", id);
-            } catch {}
-          }}
-        >
-          {textSizes.map((size) => (
-            <option key={size.id} value={size.id}>
-              {size.label}
-            </option>
-          ))}
-        </select>
         <p className="font-preview">Menulis tentang hal-hal kecil yang layak diperhatikan.</p>
         <button type="button" className="text-button font-reset" disabled={font === defaultFont} onClick={() => chooseFont(defaultFont)}>
           Kembalikan font awal
@@ -175,24 +147,19 @@ export function AppearanceControl({ defaultTheme }: { defaultTheme: string }) {
     </div>
   );
 }
-export function MobileMenu({ links }: { links: { label: string; href: string }[] }) {
+export function SiteHeader({ name, links, defaultTheme }: { name: string; links: { label: string; href: string }[]; defaultTheme: string }) {
   const [open, setOpen] = useState(false),
     [visible, setVisible] = useState(false),
+    [mobile, setMobile] = useState(false),
     [interactive, setInteractive] = useState(false),
-    ready = useRef(false),
+    [appearanceOpen, setAppearanceOpen] = useState(false);
+  const ready = useRef(false),
+    focusAfterResize = useRef<HTMLElement | null>(null),
+    root = useRef<HTMLElement>(null),
     panel = useRef<HTMLDivElement>(null),
     button = useRef<HTMLButtonElement>(null);
   const pathname = usePathname(),
     query = useSearchParams();
-  useEffect(() => setInteractive(true), []);
-  useEffect(() => {
-    const hide = () => {
-      setOpen(false);
-      setVisible(false);
-    };
-    window.addEventListener("blog-appearance-open", hide);
-    return () => window.removeEventListener("blog-appearance-open", hide);
-  }, []);
   const onReady = useCallback(() => {
     ready.current = true;
   }, []);
@@ -200,52 +167,137 @@ export function MobileMenu({ links }: { links: { label: string; href: string }[]
     setVisible(false);
     setOpen(false);
   }, []);
-  const close = () => {
+  const close = useCallback(() => {
     setOpen(false);
+    setAppearanceOpen(false);
     if (!ready.current) setVisible(false);
-  };
+  }, []);
+  const toggleAppearance = useCallback((value: boolean) => {
+    setAppearanceOpen(value);
+    if (value) {
+      setOpen(false);
+      setVisible(false);
+    }
+  }, []);
+  useEffect(() => {
+    setInteractive(true);
+    const media = matchMedia("(width < 960px)");
+    // CSS can hide a focused link before the media change event is delivered.
+    // Keep the last focus target so the replacement control can receive focus.
+    let lastFocused = document.activeElement;
+    const trackFocus = (event: FocusEvent) => {
+      lastFocused = event.target as Element;
+    };
+    document.addEventListener("focusin", trackFocus);
+    const update = () => {
+      const focused = panel.current?.contains(lastFocused);
+      setMobile(media.matches);
+      setOpen(false);
+      setVisible(false);
+      setAppearanceOpen(false);
+      focusAfterResize.current = null;
+      if (media.matches && focused) focusAfterResize.current = button.current;
+      if (root.current?.querySelector("#appearance-panel")?.contains(lastFocused))
+        focusAfterResize.current = root.current?.querySelector<HTMLElement>(".appearance-control > button") ?? null;
+      if (!media.matches) {
+        if (lastFocused === button.current) focusAfterResize.current = panel.current?.querySelector<HTMLElement>("a, button") ?? null;
+        else if (root.current?.querySelector("#appearance-panel")?.contains(lastFocused))
+          focusAfterResize.current = root.current?.querySelector<HTMLElement>(".appearance-control > button") ?? null;
+      }
+    };
+    update();
+    media.addEventListener("change", update);
+    return () => {
+      media.removeEventListener("change", update);
+      document.removeEventListener("focusin", trackFocus);
+    };
+  }, []);
+  useEffect(() => {
+    // React removes hidden/inert first; GSAP also reverts visibility at the breakpoint.
+    const target = focusAfterResize.current;
+    focusAfterResize.current = null;
+    if (!target) return;
+    const frame = requestAnimationFrame(() => target.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [mobile]);
   useEffect(() => {
     setOpen(false);
     setVisible(false);
+    setAppearanceOpen(false);
   }, [pathname, query.toString()]);
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent | FocusEvent) => {
+      if (!root.current?.contains(event.target as Node)) close();
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("focusin", outside);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("focusin", outside);
+    };
+  }, [open, close]);
   return (
-    <div
-      className="mobile-navigation"
-      onKeyDown={(e) => {
-        if (e.key === "Escape") {
+    <header
+      className="site-header"
+      ref={root}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && open) {
+          event.preventDefault();
           close();
           button.current?.focus();
         }
       }}
     >
-      <MenuMotion scope={panel} open={open} onReady={onReady} onClosed={onClosed} />
+      <a href="/" className="site-name">
+        {name}
+      </a>
+      <AppearanceControl defaultTheme={defaultTheme} open={appearanceOpen} setOpen={toggleAppearance} />
       <button
         ref={button}
+        type="button"
         disabled={!interactive}
-        className="text-button"
+        className="menu-toggle"
         aria-expanded={open}
         aria-controls="mobile-menu"
         onClick={() => {
           if (open) close();
           else {
-            window.dispatchEvent(new Event("blog-menu-open"));
+            setAppearanceOpen(false);
             setVisible(true);
             setOpen(true);
           }
         }}
       >
         {open ? "Tutup" : "Menu"}
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
+          {open ? <path d="m4 4 10 10M14 4 4 14" /> : <path d="M2 5h14M2 9h14M2 13h14" />}
+        </svg>
       </button>
-      <div id="mobile-menu" ref={panel} hidden={!visible} inert={!open} aria-hidden={!open}>
-        <nav aria-label="Navigasi mobile">
-          {links.map((l) => (
-            <a key={l.href} href={l.href} onClick={close}>
-              {l.label}
+      <MenuMotion scope={panel} open={open} onReady={onReady} onClosed={onClosed} />
+      <div
+        id="mobile-menu"
+        className="header-panel"
+        data-visible={visible}
+        ref={panel}
+        hidden={mobile && !visible}
+        inert={mobile && !open}
+        aria-hidden={mobile && !open ? true : undefined}
+      >
+        <nav
+          aria-label={mobile ? "Navigasi mobile" : "Navigasi utama"}
+          onClick={(event) => {
+            if ((event.target as Element).closest("a")) close();
+          }}
+        >
+          {links.map((link) => (
+            <a key={link.href} href={link.href} aria-current={pathname === link.href ? "page" : undefined}>
+              {link.label}
             </a>
           ))}
         </nav>
       </div>
-    </div>
+    </header>
   );
 }
 export function CodeBlock({ children }: { children: ReactNode }) {

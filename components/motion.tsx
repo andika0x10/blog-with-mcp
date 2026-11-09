@@ -133,10 +133,10 @@ export function MenuMotion({ scope, open, onReady, onClosed }: { scope: Scope; o
       if (!panel) return;
       const mm = gsap.matchMedia();
       mm.add(
-        conditions,
+        { mobile: "(width < 960px)", desktop: "(min-width: 960px)", reduce: "(prefers-reduced-motion: reduce)" },
         (_context, contextSafe) => {
           const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-          const desktop = matchMedia("(min-width: 641px)").matches;
+          const desktop = matchMedia("(min-width: 960px)").matches;
           if (reduced || desktop) {
             control.current = (value) => {
               if (!value || desktop) onClosed();

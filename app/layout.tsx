@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { contentService, origin } from "../lib/runtime";
-import { Entrance, MobileMenu, AppearanceControl } from "../components/interactions";
+import { Entrance, SiteHeader } from "../components/interactions";
 import { fontBootstrap } from "../lib/fonts";
-import { textSizeBootstrap } from "../lib/text-size";
 import "./fonts.css";
 import "katex/dist/katex.min.css";
 import "./globals.css";
@@ -23,29 +22,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={s.language} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: script + fontBootstrap + textSizeBootstrap }} />
+        <script dangerouslySetInnerHTML={{ __html: script + fontBootstrap }} />
       </head>
       <body>
         <a className="skip-link" href="#main">
           Langsung ke isi
         </a>
         <div className="site-shell">
-          <header className="site-header">
-            <a href="/" className="site-name">
-              {s.name}
-            </a>
-            <div className="header-actions">
-              <nav className="desktop-navigation" aria-label="Navigasi utama">
-                {s.navbar.map((l) => (
-                  <a key={l.href} href={l.href}>
-                    {l.label}
-                  </a>
-                ))}
-              </nav>
-              <AppearanceControl defaultTheme={s.defaultTheme} />
-              <MobileMenu links={s.navbar} />
-            </div>
-          </header>
+          <SiteHeader name={s.name} links={s.navbar} defaultTheme={s.defaultTheme} />
           <main id="main" tabIndex={-1}>
             <Entrance>{children}</Entrance>
           </main>

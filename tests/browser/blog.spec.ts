@@ -22,7 +22,7 @@ for (const viewport of [
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
       await expect(page.locator("html")).toHaveCSS("background-color", theme === "dark" ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)");
       await page.screenshot({ path: testInfo.outputPath(`home-${viewport.width}-${theme}.png`), fullPage: true });
-      if (viewport.width < 640) {
+      if (viewport.width < 960) {
         await page.getByRole("button", { name: "Menu", exact: true }).click();
         await expect(page.getByRole("navigation", { name: "Navigasi mobile" })).toBeVisible();
         await page.keyboard.press("Escape");
