@@ -52,11 +52,10 @@ function page(body: string, status = 200, cookie?: string) {
   );
 }
 export async function authorize(request: Request, env: Env, oauth: OAuthHelpers) {
-  if (!env.ADMIN_USERNAME || !env.ADMIN_PASSWORD || !env.SITE_URL) return page("<h1>Login belum dikonfigurasi</h1><p>Lengkapi environment Worker terlebih dahulu.</p>", 503);
+  if (!env.ADMIN_USERNAME || !env.ADMIN_PASSWORD) return page("<h1>Login belum dikonfigurasi</h1><p>Lengkapi environment Worker terlebih dahulu.</p>", 503);
   const url = new URL(request.url),
     secure = url.protocol === "https:",
     cookieName = secure ? "__Host-blog_auth" : "blog_auth";
-  if (url.origin !== new URL(env.SITE_URL).origin) return page("<h1>Origin tidak valid</h1>", 400);
   const authRequest = await oauth.parseAuthRequest(new Request(request.url));
   if (!authRequest.codeChallenge || authRequest.codeChallengeMethod !== "S256") return page("<h1>Koneksi memerlukan PKCE S256</h1>", 400);
   const scope = authRequest.scope.length ? authRequest.scope : ["blog:manage"];

@@ -6,8 +6,11 @@ import { AppError } from "../lib/validation";
 export { LoginLimiter } from "./login-limiter";
 
 type SiteHandler = (request: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
-export function createProvider(env: Env, siteHandler: SiteHandler) {
-  const site = env.SITE_URL.replace(/\/$/, "");
+export function createProvider(request: Request, siteHandler: SiteHandler) {
+  // OAuth discovery, issuer and resource must use the origin the client connects
+  // to. SITE_URL is for public content links, not browser CSRF validation.
+  // Use the runtime request URL, never client-supplied forwarded-host headers.
+  const site = new URL(request.url).origin;
   const options: OAuthProviderOptions<Env> = {
     apiRoute: "/mcp",
     authorizeEndpoint: "/authorize",
@@ -44,7 +47,7 @@ export function createBlogWorker(siteHandler: SiteHandler) {
   return {
     async fetch(request: Request, env: Env, ctx: ExecutionContext) {
       try {
-        const response = await createProvider(env, siteHandler).fetch(request, env, ctx);
+        const response = await createProvider(request, siteHandler).fetch(request, env, ctx);
         const secured = new Response(response.body, response);
         secured.headers.set("X-Content-Type-Options", "nosniff");
         secured.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
