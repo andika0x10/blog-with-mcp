@@ -14,12 +14,12 @@ test("menu contexts clean up without recursion across breakpoints and motion cha
   await page.goto("/");
   for (let i = 0; i < 3; i++) {
     await page.getByRole("button", { name: "Menu", exact: true }).click();
-    await expect(page.getByRole("navigation", { name: "Navigasi mobile" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Navigasi utama" })).toBeVisible();
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.keyboard.press("Escape");
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeHidden();
+    await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeVisible();
   }
@@ -142,15 +142,15 @@ test("keyboard, outside clicks, and mobile menu dismiss the panel", async ({ pag
   await page.keyboard.press("Escape");
   await expect(toggle(page)).toBeFocused();
   await expect(page.locator("#appearance-panel")).toBeHidden();
-  await expect(page.locator("#mobile-menu")).toBeHidden();
+  await expect(page.locator("#site-menu")).toBeHidden();
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeFocused();
-  await expect(page.locator("#mobile-menu")).toBeHidden();
+  await expect(page.locator("#site-menu")).toBeHidden();
   await openAppearance(page);
   await page.locator("main").click({ position: { x: 1, y: 1 } });
   await expect(page.locator("#appearance-panel")).toBeHidden();
-  await expect(page.locator("#mobile-menu")).toBeHidden();
+  await expect(page.locator("#site-menu")).toBeHidden();
 });
 
 test("blocked storage still allows font and system theme changes", async ({ page }) => {

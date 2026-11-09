@@ -149,11 +149,9 @@ function AppearanceControl({ defaultTheme, open, setOpen }: { defaultTheme: stri
 export function SiteHeader({ name, links, defaultTheme }: { name: string; links: { label: string; href: string }[]; defaultTheme: string }) {
   const [open, setOpen] = useState(false),
     [visible, setVisible] = useState(false),
-    [mobile, setMobile] = useState(false),
     [interactive, setInteractive] = useState(false),
     [appearanceOpen, setAppearanceOpen] = useState(false);
   const ready = useRef(false),
-    focusAfterResize = useRef<HTMLElement | null>(null),
     root = useRef<HTMLElement>(null),
     panel = useRef<HTMLDivElement>(null),
     button = useRef<HTMLButtonElement>(null);
@@ -193,45 +191,7 @@ export function SiteHeader({ name, links, defaultTheme }: { name: string; links:
   }, []);
   useEffect(() => {
     setInteractive(true);
-    const media = matchMedia("(width < 960px)");
-    // CSS can hide a focused link before the media change event is delivered.
-    // Keep the last focus target so the replacement control can receive focus.
-    let lastFocused = document.activeElement;
-    const trackFocus = (event: FocusEvent) => {
-      lastFocused = event.target as Element;
-    };
-    document.addEventListener("focusin", trackFocus);
-    const update = () => {
-      const focused = panel.current?.contains(lastFocused);
-      setMobile(media.matches);
-      setOpen(false);
-      setVisible(false);
-      setAppearanceOpen(false);
-      focusAfterResize.current = null;
-      if (media.matches && focused) focusAfterResize.current = button.current;
-      if (root.current?.querySelector("#appearance-panel")?.contains(lastFocused))
-        focusAfterResize.current = root.current?.querySelector<HTMLElement>(".appearance-control > button") ?? null;
-      if (!media.matches) {
-        if (lastFocused === button.current) focusAfterResize.current = panel.current?.querySelector<HTMLElement>("a, button") ?? null;
-        else if (root.current?.querySelector("#appearance-panel")?.contains(lastFocused))
-          focusAfterResize.current = root.current?.querySelector<HTMLElement>(".appearance-control > button") ?? null;
-      }
-    };
-    update();
-    media.addEventListener("change", update);
-    return () => {
-      media.removeEventListener("change", update);
-      document.removeEventListener("focusin", trackFocus);
-    };
   }, []);
-  useEffect(() => {
-    // React removes hidden/inert first; GSAP also reverts visibility at the breakpoint.
-    const target = focusAfterResize.current;
-    focusAfterResize.current = null;
-    if (!target) return;
-    const frame = requestAnimationFrame(() => target.focus());
-    return () => cancelAnimationFrame(frame);
-  }, [mobile]);
   useEffect(() => {
     setOpen(false);
     setVisible(false);
@@ -261,17 +221,20 @@ export function SiteHeader({ name, links, defaultTheme }: { name: string; links:
         }
       }}
     >
-      <a href="/" className="site-name" title={name}>
-        {name}
-      </a>
-      <AppearanceControl defaultTheme={defaultTheme} open={appearanceOpen} setOpen={toggleAppearance} />
+      <div className="site-name-slot">
+        <a href="/" className="site-name" title={name}>
+          {name}
+        </a>
+      </div>
       <button
         ref={button}
         type="button"
         disabled={!interactive}
         className="menu-toggle"
+        aria-label="Menu"
+        title="Menu"
         aria-expanded={open}
-        aria-controls="mobile-menu"
+        aria-controls="site-menu"
         onClick={() => {
           if (open) close();
           else {
@@ -281,20 +244,18 @@ export function SiteHeader({ name, links, defaultTheme }: { name: string; links:
           }
         }}
       >
-        {open ? "Tutup" : "Menu"}
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true" focusable="false">
+          <rect x="4" y="4" width="6" height="6" rx="1" />
+          <rect x="14" y="4" width="6" height="6" rx="1" />
+          <rect x="4" y="14" width="6" height="6" rx="1" />
+          <rect x="14" y="14" width="6" height="6" rx="1" />
+        </svg>
       </button>
+      <AppearanceControl defaultTheme={defaultTheme} open={appearanceOpen} setOpen={toggleAppearance} />
       <MenuMotion scope={panel} open={open} onReady={onReady} onClosed={onClosed} />
-      <div
-        id="mobile-menu"
-        className="header-panel"
-        data-visible={visible}
-        ref={panel}
-        hidden={mobile && !visible}
-        inert={mobile && !open}
-        aria-hidden={mobile && !open ? true : undefined}
-      >
+      <div id="site-menu" className="header-panel" data-visible={visible} ref={panel} hidden={!visible} inert={!open} aria-hidden={!open ? true : undefined}>
         <nav
-          aria-label={mobile ? "Navigasi mobile" : "Navigasi utama"}
+          aria-label="Navigasi utama"
           onClick={(event) => {
             if ((event.target as Element).closest("a")) close();
           }}

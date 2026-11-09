@@ -2,7 +2,7 @@
 export const siteConfig = {
   name: "Andika Dinata's Blog",
   description: "I love sarcasm.",
-  author: "Nama penulis",
+  author: "Andika Dinata",
   language: "id",
   timezone: "Asia/Jakarta",
   navbar: [

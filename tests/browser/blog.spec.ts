@@ -22,11 +22,11 @@ for (const viewport of [
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
       await expect(page.locator("html")).toHaveCSS("background-color", theme === "dark" ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)");
       await page.screenshot({ path: testInfo.outputPath(`home-${viewport.width}-${theme}.png`), fullPage: true });
-      if (viewport.width < 960) {
+      {
         await page.getByRole("button", { name: "Menu", exact: true }).click();
-        await expect(page.getByRole("navigation", { name: "Navigasi mobile" })).toBeVisible();
+        await expect(page.getByRole("navigation", { name: "Navigasi utama" })).toBeVisible();
         await page.keyboard.press("Escape");
-        await expect(page.getByRole("navigation", { name: "Navigasi mobile" })).toBeHidden();
+        await expect(page.getByRole("navigation", { name: "Navigasi utama" })).toBeHidden();
       }
       await page.getByRole("link", { name: "Tentang memperhatikan hal-hal kecil", exact: true }).click();
       await expect(page.locator(".katex-display")).toBeVisible();
@@ -64,18 +64,20 @@ test("menu reverses safely and closed links leave the keyboard order", async ({ 
   await page.goto("/");
   const toggle = page.getByRole("button", { name: "Menu", exact: true });
   await toggle.click();
-  await expect(page.getByRole("navigation", { name: "Navigasi mobile" })).toBeVisible();
-  await page.getByRole("button", { name: "Tutup", exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "Navigasi utama" })).toBeVisible();
   await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await expect(page.getByRole("navigation", { name: "Navigasi mobile" })).toBeVisible();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "Navigasi utama" })).toBeVisible();
   await page.keyboard.press("Tab");
-  await expect(page.locator("#mobile-menu a").first()).toBeFocused();
+  await expect(page.getByRole("button", { name: "Tampilan", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#site-menu a").first()).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(toggle).toBeFocused();
-  await expect(page.locator("#mobile-menu")).toHaveAttribute("inert", "");
-  await expect(page.locator("#mobile-menu")).toBeHidden();
+  await expect(page.locator("#site-menu")).toHaveAttribute("inert", "");
+  await expect(page.locator("#site-menu")).toBeHidden();
   await page.keyboard.press("Tab");
-  await expect(page.locator("#mobile-menu a").first()).not.toBeFocused();
+  await expect(page.locator("#site-menu a").first()).not.toBeFocused();
 });
 
 test("query changes, pagination, and history preserve usable content", async ({ page }) => {
@@ -107,12 +109,12 @@ test("motion preference changes keep the open menu and headings usable", async (
   await expect(page.locator(".motion-line")).toHaveCount(0);
   await expect(page.locator(".article-header h1")).toBeVisible();
   await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await expect(page.getByRole("navigation", { name: "Navigasi mobile" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Navigasi utama" })).toBeVisible();
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await expect(page.getByRole("navigation", { name: "Navigasi mobile" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Navigasi utama" })).toBeVisible();
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.keyboard.press("Escape");
-  await expect(page.locator("#mobile-menu")).toBeHidden();
+  await expect(page.locator("#site-menu")).toBeHidden();
 });
 
 test("multiline title links respond to keyboard focus without changing layout", async ({ page }) => {
@@ -184,9 +186,9 @@ test("failed animation chunks preserve reading and the mobile menu", async ({ pa
   await expect(page.locator(".article-header h1")).toBeVisible();
   await expect(page.locator(".prose")).toBeVisible();
   await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await expect(page.getByRole("navigation", { name: "Navigasi mobile" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Navigasi utama" })).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.locator("#mobile-menu")).toBeHidden();
+  await expect(page.locator("#site-menu")).toBeHidden();
   expect(blocked).toBe(true);
 });
 
