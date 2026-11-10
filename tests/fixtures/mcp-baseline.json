@@ -1,0 +1,20 @@
+{
+  "source": "v1 at 46dbd2297f5037eacc30abc6712a58b7b8084272, measured through tools/list and tools/call with tests/mcp-benchmark-fixture.ts",
+  "toolCount": 21,
+  "schemaBytes": 14059,
+  "createPublish": {
+    "calls": 2,
+    "inputBytes": 22552,
+    "outputBytes": 68672
+  },
+  "searchRead": {
+    "calls": 2,
+    "inputBytes": 249,
+    "outputBytes": 46166
+  },
+  "editParagraph": {
+    "calls": 2,
+    "inputBytes": 22634,
+    "outputBytes": 91284
+  }
+}

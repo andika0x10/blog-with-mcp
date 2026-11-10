@@ -1,23 +1,76 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { z } from "zod";
-import { ContentService } from "../lib/content";
+import { ContentService, type Content, type Revision } from "../lib/content";
 import { MediaService } from "../lib/media";
-import { AppError, contentInput, settingsSchema } from "../lib/validation";
+import { AppError, contentInput, contentPatch, pathFor, settingsSchema } from "../lib/validation";
+
+type Shape = Record<string, z.ZodType>;
+type Mode = "read" | "write" | "delete";
+const id = { id: z.uuid() };
+const versioned = { ...id, expectedVersion: z.number().int().positive() };
+const pagination = { limit: z.number().int().min(1).max(50).optional(), offset: z.number().int().min(0).optional() };
+const range = { offset: pagination.offset, length: z.number().int().min(0).max(12000).optional() };
+const revisionId = z.uuid();
+const kind = z.enum(["post", "page"]);
+const status = z.enum(["draft", "published", "trash"]);
+
+function operation<S extends Shape>(shape: S, run: (input: z.output<z.ZodObject<S>>) => Promise<unknown>) {
+  const schema = z.object(shape).strict();
+  return { shape, run: (input: unknown) => run(schema.parse(input)) };
+}
+function page<T>(rows: T[], limit = 10, offset = 0) {
+  return { items: rows.slice(0, limit), nextOffset: rows.length > limit ? offset + limit : null };
+}
+function state(c: Content, slug: string) {
+  return {
+    id: c.id,
+    version: c.version,
+    status: c.trashed_at ? "trash" : c.published_id ? "published" : "draft",
+    url: pathFor(c.kind, slug),
+    draftRevisionId: c.draft_id,
+    publishedRevisionId: c.published_id,
+  };
+}
+function receipt(c: Awaited<ReturnType<ContentService["get"]>>) {
+  return state(c, c.draft.slug);
+}
+function sliceRevision(r: Revision, offset = 0, length = 4000) {
+  const characters = Array.from(r.markdown);
+  const end = Math.min(characters.length, offset + length);
+  return {
+    revisionId: r.id,
+    title: r.title,
+    slug: r.slug,
+    summary: r.summary,
+    seoTitle: r.seoTitle,
+    seoDescription: r.seoDescription,
+    image: r.image,
+    createdAt: r.created_at,
+    markdown: characters.slice(offset, end).join(""),
+    offset,
+    totalLength: characters.length,
+    nextOffset: end < characters.length ? end : null,
+  };
+}
+type MediaMetadata = { id: string; mime: string; size: number; alt: string };
+function mediaMetadata(m: MediaMetadata) {
+  return { id: m.id, url: `/media/${m.id}`, mime: m.mime, size: m.size, alt: m.alt };
+}
 
 export function createBlogServer(env: Env) {
-  const server = new McpServer({ name: "personal-blog", version: "1.0.0" });
+  const server = new McpServer({ name: "personal-blog", version: "2.0.0" });
   const contents = new ContentService(env.DB),
     media = new MediaService(env.DB);
-  function tool<S extends Record<string, z.ZodType>>(
+  function tool<S extends Shape>(
     name: string,
     description: string,
     shape: S,
     action: (input: z.output<z.ZodObject<S>>) => Promise<unknown>,
-    mode: "read" | "write" | "delete" = "write",
+    mode: Mode = "write",
     openWorld = false
   ) {
-    const schema: z.ZodObject<Record<string, z.ZodType>> = z.object(shape);
+    const schema = z.object(shape).strict();
     server.registerTool(
       name,
       {
@@ -27,97 +80,162 @@ export function createBlogServer(env: Env) {
       },
       async (input) => {
         try {
-          const result = await action(z.object(shape).parse(input));
+          const result = await action(schema.parse(input));
           return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
         } catch (error) {
           const message =
             error instanceof AppError
               ? error.message
               : error instanceof z.ZodError
-                ? error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
-                : "Operasi gagal. Periksa input dan baca ulang data sebelum mencoba lagi.";
+                ? error.issues
+                    .slice(0, 3)
+                    .map((i) => `${i.path.join(".")}: ${i.message}`)
+                    .join("; ")
+                : "Operasi gagal. Baca ulang data sebelum mencoba lagi.";
           if (!(error instanceof AppError || error instanceof z.ZodError)) console.error(JSON.stringify({ event: "mcp_operation_failed", tool: name }));
-          return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ error: message, status: error instanceof AppError ? error.status : 400 }) }] };
+          return {
+            isError: true,
+            content: [
+              { type: "text" as const, text: JSON.stringify({ error: message, status: error instanceof AppError ? error.status : error instanceof z.ZodError ? 400 : 500 }) },
+            ],
+          };
         }
       }
     );
   }
-  const id = { id: z.string().uuid() },
-    versioned = { ...id, expectedVersion: z.number().int().positive() },
-    pagination = { limit: z.number().int().min(1).max(100).default(20), offset: z.number().int().min(0).default(0) };
-  tool(
-    "list_content",
-    "List or search posts/pages, including drafts. Pagination uses limit/offset. Read a content item before editing.",
-    { ...pagination, query: z.string().max(200).optional(), kind: z.enum(["post", "page"]).optional(), status: z.enum(["draft", "published", "trash"]).optional() },
-    (i) => contents.list(i),
+  function group(name: string, description: string, operations: Record<string, ReturnType<typeof operation>>, mode: Mode = "write") {
+    // Advertise shared fields once; each action then enforces its own required/allowed fields.
+    const shape: Shape = {};
+    for (const op of Object.values(operations)) for (const [key, schema] of Object.entries(op.shape)) shape[key] = schema.optional();
+    tool(name, description, { ...shape, action: z.enum(Object.keys(operations)) }, async ({ action, ...input }) => operations[action as string].run(input), mode);
+  }
+
+  group(
+    "read_content",
+    "list: filter query/kind/status. get: id, view=draft|published (default draft). revisions: id. revision: revisionId. Reads return 4000 Unicode characters; length=0 for metadata, max 12000. Continue via revision with revisionId/nextOffset. Lists default 10, max 50.",
+    {
+      list: operation({ ...pagination, query: z.string().max(200).optional(), kind: kind.optional(), status: status.optional() }, async (i) => {
+        const rows = await contents.list({ ...i, limit: (i.limit ?? 10) + 1 });
+        return page(
+          rows.map((c) => ({
+            id: c.id,
+            title: c.title,
+            kind: c.kind,
+            status: c.trashed_at ? "trash" : c.published_id ? "published" : "draft",
+            version: c.version,
+            url: pathFor(String(c.kind), String(c.slug)),
+          })),
+          i.limit,
+          i.offset
+        );
+      }),
+      get: operation({ ...id, view: z.enum(["draft", "published"]).optional(), ...range }, async (i) => {
+        const c = await contents.identity(i.id);
+        const selected = i.view === "published" ? c.published_id : c.draft_id;
+        if (!selected) throw new AppError("Belum ada versi terbit. Gunakan view=draft.", 404);
+        const r = await contents.revision(selected);
+        return { ...state(c, r.slug), kind: c.kind, ...sliceRevision(r, i.offset, i.length) };
+      }),
+      revisions: operation({ ...id, ...pagination }, async (i) => {
+        const rows = await contents.history(i.id, (i.limit ?? 10) + 1, i.offset ?? 0);
+        return page(
+          rows.map((r) => ({ revisionId: r.id, title: r.title, slug: r.slug, createdAt: r.created_at })),
+          i.limit,
+          i.offset
+        );
+      }),
+      revision: operation({ revisionId, ...range }, async (i) => {
+        const r = await contents.revision(i.revisionId);
+        return { id: r.content_id, ...sliceRevision(r, i.offset, i.length) };
+      }),
+    },
     "read"
   );
-  tool("get_content", "Read draft, published revision, status, and version of a post/page.", id, (i) => contents.get(i.id), "read");
-  tool("create_content", "Create a Markdown draft. Does not publish. kind is post or page.", { kind: z.enum(["post", "page"]), content: contentInput }, (i) =>
-    contents.create(i.kind, i.content)
+  group(
+    "write_content",
+    "create: kind, content(title/slug/markdown). update: id, expectedVersion, changed content fields and/or replacements[{oldText,newText}] (each matches once); markdown and replacements are exclusive. restore_revision: id, expectedVersion, revisionId. restore: id, expectedVersion. Read current version before editing. Never publishes.",
+    {
+      create: operation({ kind, content: contentPatch }, async (i) => receipt(await contents.create(i.kind, contentInput.parse(i.content)))),
+      update: operation(
+        {
+          ...versioned,
+          content: contentPatch.optional(),
+          replacements: z
+            .array(z.object({ oldText: z.string().min(1).max(200000), newText: z.string().max(200000) }).strict())
+            .min(1)
+            .max(100)
+            .optional(),
+        },
+        async (i) => receipt(await contents.edit(i.id, i.expectedVersion, i.content, i.replacements))
+      ),
+      restore_revision: operation({ ...versioned, revisionId }, async (i) => receipt(await contents.restoreRevision(i.id, i.expectedVersion, i.revisionId))),
+      restore: operation(versioned, async (i) => receipt(await contents.transition(i.id, i.expectedVersion, "restore"))),
+    }
   );
   tool(
-    "update_draft",
-    "Save a complete new draft revision. Read get_content first and pass its version. Published content stays unchanged.",
-    { ...versioned, content: contentInput },
-    (i) => contents.update(i.id, i.expectedVersion, i.content)
+    "publication",
+    "publish makes the current draft public immediately; unpublish withdraws it. Requires id and current expectedVersion.",
+    { ...versioned, action: z.enum(["publish", "unpublish"]) },
+    async (i) => receipt(await contents.transition(i.id, i.expectedVersion, i.action)),
+    "delete"
   );
-  for (const action of ["publish", "unpublish", "trash", "restore"] as const) {
-    const descriptions = {
-      publish: "Publish the current draft, or publish a revision of an existing post/page. This makes it public immediately.",
-      unpublish: "Withdraw the published version, keeping the draft and history.",
-      trash: "Move content into trash and remove it from the public website.",
-      restore: "Restore trashed content as an unpublished draft.",
-    };
-    tool(
-      `${action}_content`,
-      descriptions[action],
-      versioned,
-      (i) => contents.transition(i.id, i.expectedVersion, action),
-      action === "publish" || action === "unpublish" || action === "trash" ? "delete" : "write"
-    );
-  }
-  tool("list_revisions", "List immutable revision IDs for a content item.", { ...id, ...pagination }, (i) => contents.history(i.id, i.limit, i.offset), "read");
-  tool("get_revision", "Read the Markdown and metadata of an immutable revision.", { revisionId: z.string().uuid() }, (i) => contents.revision(i.revisionId), "read");
-  tool("restore_revision", "Copy a historical revision into a new draft revision. Does not publish.", { ...versioned, revisionId: z.string().uuid() }, (i) =>
-    contents.restoreRevision(i.id, i.expectedVersion, i.revisionId)
+  tool(
+    "trash_content",
+    "Move content to trash and remove it from the public site. Requires current expectedVersion.",
+    versioned,
+    async (i) => receipt(await contents.transition(i.id, i.expectedVersion, "trash")),
+    "delete"
   );
   tool(
     "permanent_delete_content",
-    "Irreversibly delete trashed content, revisions, previews, and reserved URLs. Use only when the owner explicitly requests permanent deletion.",
+    "Irreversibly delete trashed content and history. Only on explicit owner request; requires current expectedVersion.",
     versioned,
     (i) => contents.permanentDelete(i.id, i.expectedVersion),
     "delete"
   );
-  tool("create_preview", "Create a private preview link for the current draft revision. The link expires after one hour.", id, async (i) => {
+  tool("create_preview", "Create a private draft preview URL, valid for one hour.", id, async (i) => {
     const p = await contents.preview(i.id);
-    return { ...p, url: new URL(p.path, env.SITE_URL).toString() };
+    return { id: p.id, url: new URL(p.path, env.SITE_URL).toString(), expiresAt: p.expiresAt };
   });
-  tool("get_settings", "Read effective settings (config.ts defaults plus D1 overrides).", {}, () => contents.settings(), "read");
-  tool(
-    "update_settings",
-    "Update blog identity, navigation order, footer, language, timezone or default theme. Secrets and arbitrary CSS cannot be changed.",
-    { settings: settingsSchema.partial().strict() },
-    (i) => contents.updateSettings(i.settings)
-  );
-  tool("reset_settings", "Remove selected overrides and return to the defaults in config.ts.", { keys: z.array(settingsSchema.keyof()).min(1) }, (i) =>
-    contents.resetSettings(i.keys)
+  tool("get_settings", "Read effective blog settings.", {}, () => contents.settings(), "read");
+  group("write_settings", "update: settings patch. reset: keys to restore defaults. Returns only changed/reset fields.", {
+    update: operation({ settings: settingsSchema.partial().strict() }, async (i) => {
+      const settings = await contents.updateSettings(i.settings);
+      return Object.fromEntries(Object.keys(i.settings).map((key) => [key, settings[key as keyof typeof settings]]));
+    }),
+    reset: operation({ keys: z.array(settingsSchema.keyof()).min(1) }, async (i) => {
+      const settings = await contents.resetSettings(i.keys);
+      return Object.fromEntries(i.keys.map((key) => [key, settings[key]]));
+    }),
+  });
+  group(
+    "read_media",
+    "list: limit/offset (default 10, max 50). get: id. Returns image metadata without binary data.",
+    {
+      list: operation(pagination, async (i) => {
+        const rows = await media.list((i.limit ?? 10) + 1, i.offset ?? 0);
+        return page(
+          rows.map((m) => mediaMetadata({ id: String(m.id), mime: String(m.mime), size: Number(m.size), alt: String(m.alt) })),
+          i.limit,
+          i.offset
+        );
+      }),
+      get: operation(id, async (i) => mediaMetadata(await media.get(i.id))),
+    },
+    "read"
   );
   tool(
     "import_media",
-    "Download an image from a public HTTPS URL, save it in D1, and return its blog URL. JPEG, PNG, GIF, WebP; maximum 1,500,000 bytes. Put the returned URL in Markdown.",
+    "Download a public HTTPS image (JPEG/PNG/GIF/WebP, max 1500000 bytes). Use returned url in Markdown.",
     { url: z.url().max(2000), alt: z.string().max(1000) },
-    async (i) => {
-      const m = await media.import(i.url, i.alt);
-      return { ...m, absoluteUrl: new URL(m.url, env.SITE_URL).toString() };
-    },
+    async (i) => mediaMetadata(await media.import(i.url, i.alt)),
     "write",
     true
   );
-  tool("list_media", "List media metadata without binary data.", pagination, (i) => media.list(i.limit, i.offset), "read");
-  tool("get_media", "Read media URL, alt text, size, and format.", id, (i) => media.get(i.id), "read");
-  tool("update_media", "Update alt text metadata. Existing Markdown alt text is edited separately.", { ...id, alt: z.string().max(1000) }, (i) => media.update(i.id, i.alt));
-  tool("delete_media", "Permanently delete a media item only if it is not referenced in any content revision.", id, (i) => media.delete(i.id), "delete");
+  tool("update_media", "Update image alt metadata; existing Markdown alt text must be edited separately.", { ...id, alt: z.string().max(1000) }, async (i) =>
+    mediaMetadata(await media.update(i.id, i.alt))
+  );
+  tool("delete_media", "Permanently delete an image only if unused by all content revisions.", id, (i) => media.delete(i.id), "delete");
   return server;
 }
 export const mcpHandler = (env: Env) => createMcpHandler(() => createBlogServer(env), { route: "/mcp" });

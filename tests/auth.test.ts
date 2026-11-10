@@ -171,7 +171,7 @@ describe("OAuth and MCP", () => {
     const result = await send("/mcp", { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }) });
     expect(result.status).toBe(200);
     const tools = await result.text();
-    expect(tools).toContain("create_content");
+    expect(tools).toContain("write_content");
     expect(tools).toContain("import_media");
     const created = await send("/mcp", {
       method: "POST",
@@ -180,12 +180,12 @@ describe("OAuth and MCP", () => {
         jsonrpc: "2.0",
         id: 2,
         method: "tools/call",
-        params: { name: "create_content", arguments: { kind: "post", content: { title: "Dari Claude", slug: "dari-claude", markdown: "Disimpan lewat MCP" } } },
+        params: { name: "write_content", arguments: { action: "create", kind: "post", content: { title: "Dari Claude", slug: "dari-claude", markdown: "Disimpan lewat MCP" } } },
       }),
     });
     expect(created.status).toBe(200);
     const createdBody = await created.text();
-    expect(createdBody).toContain("Dari Claude");
+    expect(createdBody).toContain("dari-claude");
     expect(createdBody).not.toContain('"isError":true');
     expect(await env.DB.prepare("SELECT id FROM contents WHERE published_id IS NULL").first()).not.toBeNull();
     const tokenHash = await hash(tokens.access_token);

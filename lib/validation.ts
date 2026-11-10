@@ -15,6 +15,16 @@ export const contentInput = z.object({
   image: z.string().max(500).default(""),
 });
 export type ContentInput = z.infer<typeof contentInput>;
+// Do not reuse .partial() over defaulted fields: omitted edits must stay omitted.
+export const contentPatch = contentInput
+  .extend({
+    summary: contentInput.shape.summary.removeDefault(),
+    seoTitle: contentInput.shape.seoTitle.removeDefault(),
+    seoDescription: contentInput.shape.seoDescription.removeDefault(),
+    image: contentInput.shape.image.removeDefault(),
+  })
+  .partial()
+  .strict();
 const href = z
   .string()
   .max(1000)

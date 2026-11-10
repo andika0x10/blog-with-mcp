@@ -92,7 +92,7 @@ export class MediaService {
     return { id, url: `/media/${id}`, mime, size: bytes.length, alt };
   }
   async list(limit = 20, offset = 0) {
-    return (await this.db.prepare("SELECT id,mime,size,alt,created_at FROM media ORDER BY created_at DESC LIMIT ? OFFSET ?").bind(limit, offset).all()).results;
+    return (await this.db.prepare("SELECT id,mime,size,alt,created_at FROM media ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?").bind(limit, offset).all()).results;
   }
   async get(id: string) {
     const m = await this.db

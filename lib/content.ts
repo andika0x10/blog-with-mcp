@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { eq } from "drizzle-orm";
 import { settings as settingsTable } from "./db/schema";
 import { siteConfig } from "../config";
-import { AppError, contentInput, pathFor, reserved, settingsSchema, type ContentInput, type SiteSettings } from "./validation";
+import { AppError, contentInput, contentPatch, pathFor, reserved, settingsSchema, type ContentInput, type SiteSettings } from "./validation";
 import { hash, randomToken } from "./crypto";
 
 export type Revision = ContentInput & { id: string; content_id: string; created_at: string };
@@ -85,7 +85,7 @@ export class ContentService {
     return (
       await this.db
         .prepare(
-          `SELECT c.*, r.title, r.slug, r.summary FROM contents c JOIN revisions r ON r.id=c.draft_id WHERE ${conditions.join(" AND ")} ORDER BY c.updated_at DESC LIMIT ? OFFSET ?`
+          `SELECT c.*, r.title, r.slug, r.summary FROM contents c JOIN revisions r ON r.id=c.draft_id WHERE ${conditions.join(" AND ")} ORDER BY c.updated_at DESC,c.id DESC LIMIT ? OFFSET ?`
         )
         .bind(...args, Math.min(options.limit ?? 20, 100), options.offset ?? 0)
         .all()
@@ -149,6 +149,23 @@ export class ContentService {
     if (!result[0].results.length) throw new AppError("Versi berubah. Baca ulang konten sebelum menyunting.", 409);
     return this.get(id);
   }
+  async edit(id: string, expectedVersion: number, patch: Partial<ContentInput> = {}, replacements: { oldText: string; newText: string }[] = []) {
+    const changes = contentPatch.parse(patch);
+    if (!Object.keys(changes).length && !replacements.length) throw new AppError("Kirim content atau replacements yang tidak kosong.");
+    if (changes.markdown !== undefined && replacements.length) throw new AppError("Pilih content.markdown atau replacements.");
+    const current = await this.identity(id);
+    if (current.version !== expectedVersion) throw new AppError("Versi berubah. Baca ulang konten sebelum menyunting.", 409);
+    const draft = await this.revision(current.draft_id);
+    let markdown = changes.markdown ?? draft.markdown;
+    for (const { oldText, newText } of replacements) {
+      const start = markdown.indexOf(oldText);
+      // Count overlapping matches too: replacing "aa" in "aaa" is ambiguous.
+      if (!oldText || start < 0 || markdown.indexOf(oldText, start + 1) !== -1)
+        throw new AppError("Teks sasaran harus ditemukan tepat sekali. Baca ulang revisi dan perjelas oldText.", 409);
+      markdown = markdown.slice(0, start) + newText + markdown.slice(start + oldText.length);
+    }
+    return this.update(id, expectedVersion, { ...draft, ...changes, markdown });
+  }
   async transition(id: string, expectedVersion: number, action: "publish" | "unpublish" | "trash" | "restore") {
     const c = await this.identity(id),
       token = randomToken(),
@@ -190,8 +207,9 @@ export class ContentService {
   }
   async history(id: string, limit = 20, offset = 0) {
     await this.identity(id);
-    return (await this.db.prepare("SELECT id,title,slug,created_at FROM revisions WHERE content_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?").bind(id, limit, offset).all())
-      .results;
+    return (
+      await this.db.prepare("SELECT id,title,slug,created_at FROM revisions WHERE content_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?").bind(id, limit, offset).all()
+    ).results;
   }
   async restoreRevision(id: string, expectedVersion: number, revisionId: string) {
     const r = await this.revision(revisionId);

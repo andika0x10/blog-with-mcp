@@ -1,0 +1,24 @@
+{
+  "toolCount": 12,
+  "schemaBytes": 10431,
+  "createPublish": {
+    "calls": 2,
+    "inputBytes": 22584,
+    "outputBytes": 592
+  },
+  "searchReadFirstPage": {
+    "calls": 2,
+    "inputBytes": 281,
+    "outputBytes": 4897
+  },
+  "searchRead": {
+    "calls": 7,
+    "inputBytes": 1180,
+    "outputBytes": 25210
+  },
+  "editParagraph": {
+    "calls": 2,
+    "inputBytes": 403,
+    "outputBytes": 4949
+  }
+}
