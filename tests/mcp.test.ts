@@ -134,7 +134,7 @@ describe("MCP v2 contract", () => {
     expect(await read(client, c.id, { length: 0 })).toMatchObject({ markdown: "", nextOffset: 0, totalLength: 9001 });
     const edited = await client.call<Receipt>("write_content", { action: "update", id: c.id, expectedVersion: c.version, content: { markdown: "Changed" } });
     expect(edited.draftRevisionId).not.toBe(first.revisionId);
-    const rest = await client.call<Read>("read_content", { action: "revision", revisionId: first.revisionId, offset: first.nextOffset, length: 12000 });
+    const rest = await client.call<Read>("read_content", { action: "revision", revisionId: first.revisionId, offset: first.nextOffset, length: 50000 });
     expect(first.markdown + rest.markdown).toBe(markdown);
     expect(rest.nextOffset).toBeNull();
     expect(await client.call("read_content", { action: "revision", revisionId: first.revisionId, offset: 20000 })).toMatchObject({ markdown: "", nextOffset: null });

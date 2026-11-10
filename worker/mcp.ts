@@ -10,7 +10,7 @@ type Mode = "read" | "write" | "delete";
 const id = { id: z.uuid() };
 const versioned = { ...id, expectedVersion: z.number().int().positive() };
 const pagination = { limit: z.number().int().min(1).max(50).optional(), offset: z.number().int().min(0).optional() };
-const range = { offset: pagination.offset, length: z.number().int().min(0).max(12000).optional() };
+const range = { offset: pagination.offset, length: z.number().int().min(0).max(50000).optional() };
 const revisionId = z.uuid();
 const kind = z.enum(["post", "page"]);
 const status = z.enum(["draft", "published", "trash"]);
@@ -112,7 +112,7 @@ export function createBlogServer(env: Env) {
 
   group(
     "read_content",
-    "list: filter query/kind/status. get: id, view=draft|published (default draft). revisions: id. revision: revisionId. Reads return 4000 Unicode characters; length=0 for metadata, max 12000. Continue via revision with revisionId/nextOffset. Lists default 10, max 50.",
+    "list: filter query/kind/status. get: id, view=draft|published (default draft). revisions: id. revision: revisionId. Reads return 4000 Unicode characters; length=0 for metadata, max 50000. Continue via revision with revisionId/nextOffset. Lists default 10, max 50.",
     {
       list: operation({ ...pagination, query: z.string().max(200).optional(), kind: kind.optional(), status: status.optional() }, async (i) => {
         const rows = await contents.list({ ...i, limit: (i.limit ?? 10) + 1 });

@@ -37,10 +37,10 @@ Daftar mengembalikan `{items, nextOffset}`; `nextOffset: null` menandakan selesa
 { "action": "get", "id": "CONTENT_UUID" }
 ```
 
-Jika masih ada teks, gunakan operasi `revision` dengan `revisionId` dari respons pertama. Revisi bersifat tetap, sehingga lanjutan tetap konsisten meskipun draft berubah. Untuk membaca penuh, ulangi sampai `nextOffset: null`; gunakan `length: 12000` untuk mengurangi jumlah panggilan. Jangan memakai `length: 0` saat melanjutkan teks karena offset tidak maju.
+Jika masih ada teks, gunakan operasi `revision` dengan `revisionId` dari respons pertama. Revisi bersifat tetap, sehingga lanjutan tetap konsisten meskipun draft berubah. Untuk membaca penuh, ulangi sampai `nextOffset: null`; gunakan `length: 50000` untuk mengurangi jumlah panggilan. Jangan memakai `length: 0` saat melanjutkan teks karena offset tidak maju.
 
 ```json
-{ "action": "revision", "revisionId": "REVISION_UUID", "offset": 4000, "length": 12000 }
+{ "action": "revision", "revisionId": "REVISION_UUID", "offset": 4000, "length": 50000 }
 ```
 
 ### Membuat dan mengedit draft
