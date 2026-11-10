@@ -29,7 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           Langsung ke isi
         </a>
         <div className="site-shell">
-          <SiteHeader name={s.name} links={s.navbar} defaultTheme={s.defaultTheme} />
+          <SiteHeader links={s.navbar} defaultTheme={s.defaultTheme} />
           <main id="main" tabIndex={-1}>
             <Entrance>{children}</Entrance>
           </main>

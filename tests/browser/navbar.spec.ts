@@ -1,10 +1,13 @@
 import { test, expect } from "@playwright/test";
 
 for (const width of [320, 390, 1440]) {
-  test(`${width}px: only the name text links home`, async ({ page }) => {
+  test(`${width}px: home icon supports pointer and keyboard navigation`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/archive");
-    const name = page.locator(".site-name");
+    const name = page.getByRole("link", { name: "Beranda", exact: true });
+    await expect(name).toHaveAttribute("title", "Beranda");
+    await expect(name.locator("svg")).toHaveCount(1);
+    await expect(name).toHaveText("");
     await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeEnabled();
     const points = await name.evaluate((element) => {
       const rect = element.getBoundingClientRect();
@@ -22,6 +25,7 @@ for (const width of [320, 390, 1440]) {
     }
     await name.focus();
     await expect(name).toBeFocused();
+    await expect(name).toHaveCSS("outline-style", "solid");
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/$/);
     await page.goto("/archive");
@@ -33,18 +37,24 @@ for (const width of [320, 390, 1440]) {
 test("dock spacing stays stable through gradual resize", async ({ page }) => {
   await page.goto("/");
   const menu = page.getByRole("button", { name: "Menu", exact: true });
+  const home = page.getByRole("link", { name: "Beranda", exact: true });
   const settings = page.getByRole("button", { name: "Tampilan", exact: true });
   await menu.click();
   await page.locator("#site-menu a").first().focus();
   for (const width of [...Array.from({ length: 71 }, (_, i) => 320 + i * 16), 958, 959, 960, 961, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const dock = (await page.locator(".site-header").boundingBox())!;
+    const first = (await home.boundingBox())!;
     const left = (await menu.boundingBox())!;
     const right = (await settings.boundingBox())!;
     expect(left.width).toBe(44);
     expect(right.width).toBe(44);
-    expect(right.x - left.x - left.width).toBeCloseTo(8, 1);
-    expect(dock.x + dock.width - right.x - right.width).toBeCloseTo(11, 1);
+    expect(first.width).toBe(44);
+    expect(first.height).toBe(44);
+    expect(left.x - first.x - first.width).toBeCloseTo(20, 1);
+    expect(right.x - left.x - left.width).toBeCloseTo(20, 1);
+    expect(first.x - dock.x).toBeCloseTo(13, 1);
+    expect(dock.x + dock.width - right.x - right.width).toBeCloseTo(13, 1);
     expect(dock.height).toBe(62);
     expect(dock.y).toBe(826);
     expect(dock.x).toBeGreaterThanOrEqual(12);
@@ -55,7 +65,7 @@ test("dock spacing stays stable through gradual resize", async ({ page }) => {
   }
 });
 
-for (const width of [390, 1440]) {
+for (const width of [320, 390, 1440]) {
   for (const count of [2, 10, 12]) {
     test(`${width}px: ${count} navigation links fit a short viewport`, async ({ page }, info) => {
       await page.setViewportSize({ width, height: 480 });

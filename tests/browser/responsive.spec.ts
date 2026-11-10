@@ -22,6 +22,18 @@ for (const width of widths) {
       ]) {
         await page.goto(route);
         await expect(page.locator("main h1").first()).toBeVisible();
+        if (route === "/" || route.startsWith("/?")) {
+          const title = page.locator(".index-intro h1");
+          const description = page.locator(".index-intro p");
+          await expect(title).toHaveText(await page.title());
+          await expect(description).toBeVisible();
+          const headingBox = (await title.boundingBox())!;
+          const descriptionBox = (await description.boundingBox())!;
+          expect(descriptionBox.y - headingBox.y - headingBox.height).toBeCloseTo(12, 1);
+          await expect(page.locator(".site-header")).not.toContainText(await title.innerText());
+        } else {
+          await expect(page.locator(".index-intro")).toHaveCount(0);
+        }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), route).toBe(true);
         {
           const before = await page.locator("main").boundingBox();
@@ -97,7 +109,7 @@ test("long names, navigation labels, and footer text wrap at every breakpoint", 
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
     await expect(page.getByRole("button", { name: "Tampilan", exact: true })).toBeEnabled();
-    await page.locator(".site-name").evaluate((element) => (element.textContent = "Nama blog panjang ".repeat(7)));
+    await page.locator(".index-intro h1").evaluate((element) => (element.textContent = "Nama blog panjang ".repeat(7)));
     await page.getByRole("button", { name: "Menu", exact: true }).click();
     await page.locator(".header-panel nav").evaluate((element) => {
       element.replaceChildren(
@@ -113,7 +125,9 @@ test("long names, navigation labels, and footer text wrap at every breakpoint", 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const dock = (await page.locator(".site-header").boundingBox())!;
     expect(dock.height).toBeLessThanOrEqual(120);
-    expect((await page.locator(".site-name").boundingBox())!.width).toBeGreaterThan(40);
+    const title = (await page.locator(".index-intro h1").boundingBox())!;
+    expect(title.width).toBeGreaterThan(40);
+    expect(title.height).toBeGreaterThan(60);
     {
       const panel = (await page.locator("#site-menu").boundingBox())!;
       expect(panel.y).toBeGreaterThanOrEqual(12);
@@ -153,6 +167,7 @@ for (const width of widths) {
     expect(panel.y + panel.height).toBeLessThanOrEqual(after.y - 9);
     expect(panel.x).toBeGreaterThanOrEqual(12);
     expect(panel.x + panel.width).toBeLessThanOrEqual(width - 12);
+    expect(panel.width).toBeCloseTo(Math.min(340, width - 24), 1);
     await page.getByLabel("Font", { exact: true }).selectOption("literata");
     await page.getByLabel("Font", { exact: true }).scrollIntoViewIfNeeded();
     await expect(page.getByLabel("Font", { exact: true })).toBeInViewport();

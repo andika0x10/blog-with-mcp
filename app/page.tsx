@@ -8,7 +8,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ p
   return (
     <section className="index-column">
       <header className="index-intro">
-        <h1>{settings.description}</h1>
+        <h1>{settings.name}</h1>
+        <p>{settings.description}</p>
       </header>
       {posts.length ? (
         <PostList posts={posts} settings={settings} />

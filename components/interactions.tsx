@@ -146,7 +146,7 @@ function AppearanceControl({ defaultTheme, open, setOpen }: { defaultTheme: stri
     </div>
   );
 }
-export function SiteHeader({ name, links, defaultTheme }: { name: string; links: { label: string; href: string }[]; defaultTheme: string }) {
+export function SiteHeader({ links, defaultTheme }: { links: { label: string; href: string }[]; defaultTheme: string }) {
   const [open, setOpen] = useState(false),
     [visible, setVisible] = useState(false),
     [interactive, setInteractive] = useState(false),
@@ -221,11 +221,22 @@ export function SiteHeader({ name, links, defaultTheme }: { name: string; links:
         }
       }}
     >
-      <div className="site-name-slot">
-        <a href="/" className="site-name" title={name}>
-          {name}
-        </a>
-      </div>
+      <a href="/" className="home-link" aria-label="Beranda" title="Beranda" aria-current={pathname === "/" ? "page" : undefined}>
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path d="m3 10 9-7 9 7M5 9v12h5v-7h4v7h5V9" />
+        </svg>
+      </a>
       <button
         ref={button}
         type="button"

@@ -128,7 +128,7 @@ test("multiline title links respond to keyboard focus without changing layout", 
   const focused = await link.boundingBox();
   expect(focused?.height).toBe(initial?.height);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.locator(".site-name").focus();
+  await page.getByRole("link", { name: "Beranda", exact: true }).focus();
   await expect.poll(() => link.evaluate((el) => parseFloat(getComputedStyle(el).getPropertyValue("--link-reveal")))).toBe(0);
 });
 
