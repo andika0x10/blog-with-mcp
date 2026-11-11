@@ -90,6 +90,7 @@ button:disabled {
 }
 /* Floating reading dock; panels share its viewport-safe anchor. */
 .site-header {
+  --dock-panel-width: min(340px, calc(100vw - 24px));
   line-height: 1.5;
   position: fixed;
   z-index: 15;
@@ -111,9 +112,10 @@ button:disabled {
 }
 .header-panel {
   position: absolute;
-  /* Include the dock border when aligning its outer edges. */
   bottom: calc(100% + 11px);
-  inset-inline: -1px;
+  /* Center without a transform, so the menu animation can move vertically. */
+  left: calc((100% - var(--dock-panel-width)) / 2);
+  width: var(--dock-panel-width);
   max-height: calc(100dvh - var(--dock-height, 62px) - var(--dock-offset) - 34px);
   display: flex;
   flex-direction: column;
@@ -227,7 +229,7 @@ button:disabled {
   bottom: calc(100% + 10px);
   left: 50%;
   transform: translateX(-50%);
-  width: min(340px, calc(100vw - 24px));
+  width: var(--dock-panel-width);
   max-height: min(560px, calc(100dvh - var(--dock-height, 66px) - var(--dock-offset) - 34px));
   overflow-y: auto;
   overscroll-behavior: contain;

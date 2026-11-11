@@ -66,7 +66,7 @@ test("dock spacing stays stable through gradual resize", async ({ page }) => {
 });
 
 for (const width of [320, 390, 1440]) {
-  for (const count of [2, 10, 12]) {
+  for (const count of [2, 10, 12, 100]) {
     test(`${width}px: ${count} navigation links fit a short viewport`, async ({ page }, info) => {
       await page.setViewportSize({ width, height: 480 });
       await page.emulateMedia({ reducedMotion: "reduce" });
@@ -89,7 +89,9 @@ for (const width of [320, 390, 1440]) {
       const dock = (await page.locator(".site-header").boundingBox())!;
       expect(rect.y).toBeGreaterThanOrEqual(12);
       expect(dock.y - rect.y - rect.height).toBeCloseTo(10, 1);
-      expect(rect.width).toBeCloseTo(dock.width, 1);
+      expect(rect.width).toBeCloseTo(Math.min(340, width - 24), 1);
+      expect(rect.x + rect.width / 2).toBeCloseTo(dock.x + dock.width / 2, 1);
+      if (count === 100) await page.screenshot({ path: info.outputPath("menu-top.png") });
       await panel.locator("a").last().scrollIntoViewIfNeeded();
       await expect(panel.locator("a").last()).toBeInViewport();
       await page.screenshot({ path: info.outputPath("menu.png") });
