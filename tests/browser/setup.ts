@@ -19,6 +19,8 @@ export default async function setup() {
     token = "a".repeat(64);
   const markdown = `Paragraf dengan tautan panjang: https://example.com/${"panjang".repeat(30)}
 
+[Arsip internal](/archive), [Bagian tabel](#tabel-dan-kode), [Email](mailto:hello@example.com), dan [Situs external](https://example.com/).
+
 > Catatan panjang untuk menguji pembungkusan pada layar kecil.
 
 ## Tabel dan kode
@@ -54,6 +56,16 @@ $$`;
   const date = new Date().toISOString();
   await json(`/d1/database/${encodeURIComponent(db.uuid)}/raw`, {
     batch: [
+      {
+        sql: "INSERT OR REPLACE INTO settings(key,value) VALUES('navbar',?)",
+        params: [
+          JSON.stringify([
+            { label: "Arsip", href: "/archive" },
+            { label: "Cari", href: "/search" },
+            { label: "Mau jadi hengker?", href: "https://example.com/" },
+          ]),
+        ],
+      },
       {
         sql: "INSERT OR IGNORE INTO contents(id,kind,draft_id,published_id,published_at,updated_at,mutation) VALUES(?,'page',?,?,?,?,?)",
         params: [id, revision, revision, date, date, id],

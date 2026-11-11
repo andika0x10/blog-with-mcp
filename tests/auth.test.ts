@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { env, exports } from "cloudflare:workers";
-import { evictDurableObject, runDurableObjectAlarm } from "cloudflare:test";
+import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import type { LoginLimiter } from "../worker/login-limiter";
+import type { AuthSession } from "../worker/auth-session";
 import { hash } from "../lib/crypto";
 const base = "https://blog.example.com";
 const send = (path: string, init?: RequestInit) => exports.default.fetch(new Request(base + path, { redirect: "manual", ...init }));
@@ -10,13 +11,13 @@ const cookie = (r: Response) => r.headers.get("set-cookie")!.split(";")[0];
 beforeAll(async () => {
   await env.DB.exec(env.MIGRATION.replace(/\n/g, " "));
 });
-async function flow(origin = base) {
+async function flow(origin = base, clientName = "Test Claude") {
   const send = (path: string, init?: RequestInit) => exports.default.fetch(new Request(origin + path, { redirect: "manual", ...init }));
   const registration = await send("/oauth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      client_name: "Test Claude",
+      client_name: clientName,
       redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
@@ -46,14 +47,135 @@ async function flow(origin = base) {
   expect(login.status).toBe(200);
   return { client, verifier, path, login, loginHtml: await login.text(), send };
 }
+
+type Flow = Awaited<ReturnType<typeof flow>>;
+async function anotherTransaction(f: Flow) {
+  const params = new URLSearchParams(f.path.split("?")[1]);
+  params.set("state", crypto.randomUUID());
+  const path = `/authorize?${params}`;
+  const login = await f.send(path);
+  return { ...f, path, login, loginHtml: await login.text() };
+}
+async function connect(f: Flow, jar = new Map<string, string>()) {
+  const remember = (response: Response) => {
+    const value = cookie(response);
+    jar.set(value.split("=")[0], value);
+  };
+  const headers = () => ({ "Content-Type": "application/x-www-form-urlencoded", Origin: base, Cookie: [...jar.values()].join("; "), "CF-Connecting-IP": crypto.randomUUID() });
+  remember(f.login);
+  const consent = await f.send(f.path, {
+    method: "POST",
+    headers: headers(),
+    body: new URLSearchParams({ csrf: csrf(f.loginHtml), username: env.ADMIN_USERNAME, password: env.ADMIN_PASSWORD }).toString(),
+  });
+  expect(consent.status).toBe(200);
+  remember(consent);
+  const consentHtml = await consent.text();
+  const approved = await f.send(f.path, { method: "POST", headers: headers(), body: new URLSearchParams({ csrf: csrf(consentHtml), decision: "allow" }).toString() });
+  expect(approved.status).toBe(302);
+  remember(approved);
+  const response = await f.send("/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: f.client.client_id,
+      code: new URL(approved.headers.get("location")!).searchParams.get("code")!,
+      code_verifier: f.verifier,
+      redirect_uri: "https://claude.ai/api/mcp/auth_callback",
+      resource: base + "/mcp",
+    }).toString(),
+  });
+  expect(response.status).toBe(200);
+  return (await response.json()) as { access_token: string; refresh_token: string };
+}
+async function assertTools(token: string) {
+  const response = await send("/mcp", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream", "MCP-Protocol-Version": "2025-11-25" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+  });
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain("write_content");
+}
 describe("OAuth and MCP", () => {
+  it("escapes untrusted client names and limits callback form navigation to the validated origin", async () => {
+    const f = await flow(base, '<img src=x onerror="alert(1)">');
+    expect(f.loginHtml).toContain("&lt;img");
+    expect(f.loginHtml).not.toContain("<img");
+    expect(f.login.headers.get("content-security-policy")).toContain("form-action 'self' https://claude.ai;");
+    expect(f.login.headers.get("content-security-policy")).toContain("default-src 'none'");
+    await connect(f);
+  });
+  it.each([true, false])("keeps concurrent grants and refreshes independent (same client: %s)", async (sameClient) => {
+    const first = await flow();
+    const second = sameClient ? await anotherTransaction(first) : await flow();
+    const a = await connect(first),
+      b = await connect(second);
+    expect(a.access_token).not.toBe(b.access_token);
+    for (const token of [a.access_token, b.access_token]) await assertTools(token);
+    for (const [f, tokens] of [
+      [first, a],
+      [second, b],
+    ] as const) {
+      const response = await send("/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ grant_type: "refresh_token", client_id: f.client.client_id, refresh_token: tokens.refresh_token, resource: base + "/mcp" }).toString(),
+      });
+      expect(response.status).toBe(200);
+      await assertTools(((await response.json()) as { access_token: string }).access_token);
+    }
+  });
+  it("isolates two tabs in one browser and rejects cross-transaction CSRF", async () => {
+    const first = await flow(),
+      second = await anotherTransaction(first);
+    const jar = new Map([first, second].map((f) => [cookie(f.login).split("=")[0], cookie(f.login)]));
+    expect(jar.size).toBe(2);
+    const forged = await send(second.path, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: base, Cookie: [...jar.values()].join("; ") },
+      body: new URLSearchParams({ csrf: csrf(first.loginHtml), username: env.ADMIN_USERNAME, password: env.ADMIN_PASSWORD }).toString(),
+    });
+    expect(forged.status).toBe(403);
+    const a = await connect(first, jar),
+      b = await connect(second, jar);
+    await assertTools(a.access_token);
+    await assertTools(b.access_token);
+    expect(
+      (
+        await send(first.path, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: base, Cookie: cookie(first.login) },
+          body: new URLSearchParams({ csrf: csrf(first.loginHtml), decision: "allow" }).toString(),
+        })
+      ).status
+    ).toBe(403);
+  });
+  it("renders a retryable login error without reflecting passwords or raw HTML", async () => {
+    const f = await flow();
+    const response = await send(f.path, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: base, Cookie: cookie(f.login), "CF-Connecting-IP": crypto.randomUUID() },
+      body: new URLSearchParams({ csrf: csrf(f.loginHtml), username: '\"><script>alert(1)</script>', password: "never-reflect-this" }).toString(),
+    });
+    expect(response.status).toBe(401);
+    expect(response.headers.get("content-security-policy")).toContain("font-src 'self'");
+    const html = await response.text();
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("never-reflect-this");
+    expect(csrf(html)).toBe(csrf(f.loginHtml));
+    await connect(f);
+  });
   it.each(["https://blog.test.workers.dev", "http://localhost:8787"])("completes OAuth on %s when SITE_URL points elsewhere", async (origin) => {
     const f = await flow(origin);
     const discovery = await f.send("/.well-known/oauth-authorization-server");
     expect(await discovery.json()).toMatchObject({ issuer: origin, authorization_endpoint: origin + "/authorize", token_endpoint: origin + "/oauth/token" });
     const metadata = await f.send("/.well-known/oauth-protected-resource/mcp");
     expect(await metadata.json()).toMatchObject({ resource: origin + "/mcp", authorization_servers: [origin] });
-    expect(f.login.headers.get("set-cookie")).toContain(origin.startsWith("https:") ? "__Host-blog_auth=" : "blog_auth=");
+    expect(f.login.headers.get("set-cookie")).toMatch(origin.startsWith("https:") ? /^__Host-blog_auth_[a-f0-9]+=/ : /^blog_auth_[a-f0-9]+=/);
     const loginBody = new URLSearchParams({ csrf: csrf(f.loginHtml), username: env.ADMIN_USERNAME, password: env.ADMIN_PASSWORD }).toString();
     // A valid session and CSRF token must still not permit a cross-origin POST.
     for (const attackerOrigin of [base, "https://evil.example", "null", ""]) {
@@ -208,9 +330,12 @@ describe("OAuth and MCP", () => {
     expect((await send(f.path, { ...init, headers: { ...init.headers, Origin: "null" } })).status).toBe(403);
   });
   it("rejects an expired browser login session", async () => {
-    const f = await flow(),
-      value = cookie(f.login).split("=")[1];
-    await env.OAUTH_KV.delete(`login:${await hash(value)}`);
+    const f = await flow();
+    const sessions = (env.AUTH_SESSIONS as DurableObjectNamespace<AuthSession>).getByName(await hash(base + f.path));
+    await runInDurableObject(sessions, (_instance, state) => {
+      const session = state.storage.kv.get<{ expiresAt: number }>("session")!;
+      state.storage.kv.put("session", { ...session, expiresAt: Date.now() - 1 });
+    });
     expect(
       (
         await send(f.path, {

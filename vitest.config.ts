@@ -11,7 +11,7 @@ export default defineConfig({
         compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
         d1Databases: ["DB"],
         kvNamespaces: ["OAUTH_KV"],
-        durableObjects: { LOGIN_LIMITER: { className: "LoginLimiter", useSQLite: true } },
+        durableObjects: { LOGIN_LIMITER: { className: "LoginLimiter", useSQLite: true }, AUTH_SESSIONS: { className: "AuthSession", useSQLite: true } },
         bindings: {
           SITE_URL: "https://blog.example.com",
           ADMIN_USERNAME: "test-owner",

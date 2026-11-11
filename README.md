@@ -6,6 +6,16 @@ Blog personal berbasis vinext, React, TypeScript, Tailwind CSS, dan Cloudflare W
 
 ## MCP v2: kontrak hemat token
 
+### Menghubungkan beberapa akun Claude
+
+Tambahkan custom connector dengan URL `https://domain-blog-kamu/mcp` di setiap akun Claude. Pada halaman koneksi, masuk memakai username dan password admin blog, tinjau izin, lalu pilih **Izinkan akses**. Ulangi dari akun Claude lainnya dengan URL MCP yang sama.
+
+Setiap koneksi memiliki grant dan token sendiri. Menambahkan atau menghubungkan ulang akun tidak memutus koneksi sebelumnya; beberapa proses login juga dapat dibuka di tab browser yang berbeda. Semua koneksi mendapat akses admin penuh ke blog yang sama. Akun admin blog berbeda dari akun Claude, dan blog tidak menerima identitas email akun Claude. Token akses berlaku satu jam dan refresh token berlaku 30 hari.
+
+Sesi browser untuk login dan persetujuan disimpan selama 10 menit di Durable Object `AuthSession` melalui binding `AUTH_SESSIONS`. Sesi ini langsung konsisten setelah login, termasuk jika request berikutnya dilayani dari lokasi Cloudflare berbeda. `OAUTH_KV` tetap dipakai oleh library OAuth untuk client, grant, dan token. Deploy harus menyertakan export serta binding baru dari `cloudflare.config.ts`; tidak ada migrasi D1. Proses login yang sedang berjalan saat perubahan penyimpanan diterapkan perlu dimulai ulang; koneksi yang sudah mendapat token tetap berlaku. Log `oauth_session_rejected` membedakan cookie yang tidak terkirim dari sesi tidak valid/kedaluwarsa tanpa mencatat token atau URL OAuth.
+
+### Kontrak tool
+
 Endpoint tetap `/mcp`, dengan autentikasi dan database yang sama. Kontrak input/output berubah dan nama tool lama tidak diberi alias. Setelah versi ini diterapkan, segarkan daftar tool atau hubungkan ulang connector MCP agar client mengambil schema baru.
 
 | Tool                       | `action` dan input                                                                                                                                                              |
@@ -31,7 +41,7 @@ Daftar mengembalikan `{items, nextOffset}`; `nextOffset: null` menandakan selesa
 
 ### Membaca dan melanjutkan artikel
 
-`read_content` dengan `action: "get"` membaca satu versi: `view: "draft"` secara default, atau `view: "published"`. Versi terbit yang belum tersedia menghasilkan error 404. Respons berisi metadata, `revisionId`, `markdown`, `offset`, `totalLength`, dan `nextOffset`. Panjang default 4.000 karakter Unicode (code point), maksimal 12.000 per panggilan. `length: 0` hanya mengambil metadata. Offset di luar akhir artikel menghasilkan teks kosong dan `nextOffset: null`.
+`read_content` dengan `action: "get"` membaca satu versi: `view: "draft"` secara default, atau `view: "published"`. Versi terbit yang belum tersedia menghasilkan error 404. Respons berisi metadata, `revisionId`, `markdown`, `offset`, `totalLength`, dan `nextOffset`. Panjang default 4.000 karakter Unicode (code point), maksimal 50.000 per panggilan. `length: 0` hanya mengambil metadata. Offset di luar akhir artikel menghasilkan teks kosong dan `nextOffset: null`.
 
 ```json
 { "action": "get", "id": "CONTENT_UUID" }

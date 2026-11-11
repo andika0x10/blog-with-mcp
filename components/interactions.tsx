@@ -3,6 +3,7 @@ import { useRef, useState, useEffect, useCallback, type ReactNode } from "react"
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { applyFont, defaultFont, fonts, resolveFont, type FontId } from "../lib/fonts";
+import { BlogLink } from "./blog-link";
 // GSAP starts its ticker at module load. Keep that module out of Workers SSR.
 // Animation is optional: a failed chunk must not replace the readable page.
 const PageMotion = dynamic(() => import("./motion").then((m) => m.PageMotion).catch(() => () => null), { ssr: false });
@@ -146,7 +147,7 @@ function AppearanceControl({ defaultTheme, open, setOpen }: { defaultTheme: stri
     </div>
   );
 }
-export function SiteHeader({ links, defaultTheme }: { links: { label: string; href: string }[]; defaultTheme: string }) {
+export function SiteHeader({ links, defaultTheme, siteOrigin }: { links: { label: string; href: string }[]; defaultTheme: string; siteOrigin: string }) {
   const [open, setOpen] = useState(false),
     [visible, setVisible] = useState(false),
     [interactive, setInteractive] = useState(false),
@@ -282,9 +283,9 @@ export function SiteHeader({ links, defaultTheme }: { links: { label: string; hr
           }}
         >
           {links.map((link) => (
-            <a key={link.href} href={link.href} aria-current={pathname === link.href ? "page" : undefined}>
+            <BlogLink key={link.href} href={link.href} siteOrigin={siteOrigin} aria-current={pathname === link.href ? "page" : undefined}>
               {link.label}
-            </a>
+            </BlogLink>
           ))}
         </nav>
       </div>

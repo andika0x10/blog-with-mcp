@@ -138,7 +138,7 @@ describe("MCP v2 contract", () => {
     expect(first.markdown + rest.markdown).toBe(markdown);
     expect(rest.nextOffset).toBeNull();
     expect(await client.call("read_content", { action: "revision", revisionId: first.revisionId, offset: 20000 })).toMatchObject({ markdown: "", nextOffset: null });
-    for (const extra of [{ length: 12001 }, { length: -1 }, { offset: -1 }]) await expect(read(client, c.id, extra)).rejects.toThrow();
+    for (const extra of [{ length: 50001 }, { length: -1 }, { offset: -1 }]) await expect(read(client, c.id, extra)).rejects.toThrow();
   });
 
   it("handles empty Markdown, missing published views, and unknown revisions", async () => {

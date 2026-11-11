@@ -3,7 +3,9 @@ import { authorize } from "./auth";
 import { mcpHandler } from "./mcp";
 import { MediaService } from "../lib/media";
 import { AppError } from "../lib/validation";
+import { createAuthPage, esc } from "./auth-page";
 export { LoginLimiter } from "./login-limiter";
+export { AuthSession } from "./auth-session";
 
 type SiteHandler = (request: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
 export function createProvider(request: Request, siteHandler: SiteHandler) {
@@ -60,6 +62,10 @@ export function createBlogWorker(siteHandler: SiteHandler) {
         } else if (!path.startsWith("/media/") && !path.startsWith("/_next/")) secured.headers.set("Cache-Control", "no-store");
         return secured;
       } catch (error) {
+        if (new URL(request.url).pathname === "/authorize" && (error instanceof AuthorizationError || error instanceof AppError)) {
+          const message = error instanceof AppError ? error.message : "Permintaan otorisasi tidak valid. Hubungkan ulang connector dari Claude.";
+          return createAuthPage()(`<h1>Koneksi belum berhasil</h1><p>${esc(message)}</p>`, error instanceof AppError ? error.status : 400);
+        }
         if (error instanceof AuthorizationError)
           return new Response("Permintaan otorisasi tidak valid. Hubungkan ulang connector dari Claude.", { status: 400, headers: { "Cache-Control": "no-store" } });
         if (!(error instanceof AppError))

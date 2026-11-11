@@ -6,6 +6,8 @@ import rehypeHighlight from "rehype-highlight";
 import { CodeBlock } from "./interactions";
 import { Children, isValidElement, type ReactNode } from "react";
 import type { Root, RootContent } from "mdast";
+import { BlogLink } from "./blog-link";
+import { origin } from "../lib/runtime";
 
 // Blog lists remain prose, including older content written with task markers.
 function remarkBlogLists() {
@@ -47,6 +49,11 @@ export function Markdown({ source }: { source: string }) {
           [rehypeHighlight, { detect: false, ignoreMissing: true }],
         ]}
         components={{
+          a: ({ href, children, title }) => (
+            <BlogLink href={href} title={title} siteOrigin={origin()}>
+              {children}
+            </BlogLink>
+          ),
           pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
           h1: ({ children }) => <h2 id={anchor(children)}>{children}</h2>,
           h2: ({ children }) => <h2 id={anchor(children)}>{children}</h2>,

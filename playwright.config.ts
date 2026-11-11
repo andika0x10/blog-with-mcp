@@ -9,6 +9,8 @@ export default defineConfig({
   use: { baseURL, browserName: "chromium", trace: "retain-on-failure" },
   globalSetup: "./tests/browser/setup.ts",
   webServer: {
+    // Disposable local credentials, never used by deployments.
+    env: { ADMIN_USERNAME: "browser-test-owner", ADMIN_PASSWORD: "browser-only-password" },
     command: production ? "npm run build && npm run start -- --host 127.0.0.1 --port 4173 --strictPort" : "npm run dev -- --host 127.0.0.1",
     url: baseURL,
     reuseExistingServer: !production && !process.env.CI,
