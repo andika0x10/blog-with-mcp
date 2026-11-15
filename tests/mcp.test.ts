@@ -2,6 +2,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "cloudflare:workers";
 import { ContentService } from "../lib/content";
 import { MediaService } from "../lib/media";
+import { resolveSiteUrl } from "../lib/site-url";
+import { mcpHandler } from "../worker/mcp";
 import { mcpClient } from "./mcp-client";
 
 type Receipt = { id: string; version: number; status: string; url: string; draftRevisionId: string; publishedRevisionId: string | null };
@@ -187,6 +189,18 @@ describe("MCP v2 contract", () => {
     const replaced = await client.call<Receipt>("write_content", { action: "update", id: c.id, expectedVersion: edited.version, content: { markdown: "Full replacement" } });
     expect(replaced.version).toBe(edited.version + 1);
     expect((await read(client, c.id)).markdown).toBe("Full replacement");
+  });
+
+  it.each(["https://alternate.example.com", "http://localhost:8787"])("uses the configured main domain for previews when MCP connects through %s", async (origin) => {
+    const client = mcpClient((bindings) => mcpHandler({ ...bindings, SITE_URL: resolveSiteUrl(undefined, "production") }), origin);
+    const c = await create(client);
+    const preview = await client.call<{ id: string; url: string; expiresAt: string }>("create_preview", { id: c.id });
+    const url = new URL(preview.url);
+    expect(url.origin).toBe("https://blog.andikadinata.workers.dev");
+    expect(url.pathname).toMatch(/^\/preview\/[a-f0-9]{64}$/);
+    expect(preview.id).toBe(c.id);
+    expect((await contents.readPreview(url.pathname.split("/").pop()!))?.id).toBe(c.draftRevisionId);
+    expect(Date.parse(preview.expiresAt)).toBeGreaterThan(Date.now());
   });
 
   it("retains previews, publishing, revision restoration, trash restoration and permanent deletion", async () => {

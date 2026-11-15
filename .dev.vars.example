@@ -1,5 +1,6 @@
 # Copy to .dev.vars, which is ignored by git.
 ADMIN_USERNAME=
 ADMIN_PASSWORD=
-# Public blog URL used in content links. OAuth uses the connection's origin.
+# Local development only. Production defaults to https://blog.andikadinata.workers.dev.
+# Public blog URL used in previews and content links. OAuth uses the connection's origin.
 SITE_URL=http://localhost:5173

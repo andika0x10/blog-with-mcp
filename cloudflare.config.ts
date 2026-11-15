@@ -1,7 +1,8 @@
 import { bindings, defineConfig, defineWorker, exports } from "cf/config";
 import * as entrypoint from "./worker/index" with { type: "cf-worker" };
+import { resolveSiteUrl } from "./lib/site-url.ts";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   worker: defineWorker({
     name: "blog",
     entrypoint,
@@ -21,9 +22,9 @@ export default defineConfig({
       OAUTH_KV: bindings.kv(process.env.OAUTH_KV_ID ? { id: process.env.OAUTH_KV_ID } : {}),
       LOGIN_LIMITER: bindings.durableObject({ worker: "blog", exportName: "LoginLimiter" }),
       AUTH_SESSIONS: bindings.durableObject({ worker: "blog", exportName: "AuthSession" }),
-      SITE_URL: bindings.text(process.env.SITE_URL ?? "http://localhost:5173"),
+      SITE_URL: bindings.text(resolveSiteUrl(process.env.SITE_URL, mode)),
       ADMIN_USERNAME: bindings.secret(),
       ADMIN_PASSWORD: bindings.secret(),
     },
   }),
-});
+}));

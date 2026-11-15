@@ -4,6 +4,8 @@ Blog personal berbasis vinext, React, TypeScript, Tailwind CSS, dan Cloudflare W
 
 `SITE_URL` menentukan URL publik pada tautan konten. Endpoint OAuth dan metadata MCP mengikuti origin URL request yang dilayani Worker, sehingga domain kustom, `workers.dev`, dan port localhost dapat digunakan tanpa error perbedaan `SITE_URL`. Setiap token tetap terikat pada resource origin tempat koneksi dibuat; POST login tetap memerlukan Origin yang sama, sesi, dan token CSRF yang valid.
 
+Default `SITE_URL` untuk build/deploy adalah `https://blog.andikadinata.workers.dev`. Preview selalu memakai domain utama ini meskipun koneksi MCP menggunakan alamat lain; sitemap, RSS, dan canonical URL juga memakai `SITE_URL`. Untuk mengganti domain utama, isi environment variable `SITE_URL` pada proses build Cloudflare atau terminal sebelum build. Nilainya harus berupa origin HTTPS publik tanpa path, query, fragment, atau kredensial. Nilai kosong/tidak valid, HTTP, dan localhost/loopback ditolak di luar mode `development` agar konfigurasi lokal tidak ikut ter-deploy. Saat `vite dev`, default tetap `http://localhost:5173`; `.dev.vars.example` hanya untuk development lokal. Variabel runtime di dashboard saja tidak menggantikan nilai `process.env.SITE_URL` yang dibaca konfigurasi saat build.
+
 ## MCP v2: kontrak hemat token
 
 ### Menghubungkan beberapa akun Claude
@@ -95,11 +97,11 @@ Pembacaan penuh v2 diukur memakai panjang default 4.000, termasuk semua lanjutan
 
 `cf@1.0.0-beta.28` mengaktifkan strict mode secara internal. Deploy otomatis bisa gagal jika konfigurasi Worker yang dibuat lewat dashboard berbeda dari konfigurasi proyek. Pesan untuk menghapus `--strict` menyesatkan karena flag tersebut tidak diekspos. Lihat [Cloudflare #69](https://github.com/cloudflare/cf/issues/69).
 
-Solusi: isi `D1_DATABASE_ID`, `OAUTH_KV_ID`, dan `SITE_URL` produksi, lalu build dan deploy sekali dari terminal interaktif:
+Solusi: isi `D1_DATABASE_ID` dan `OAUTH_KV_ID` produksi; `SITE_URL` hanya perlu diisi jika domain utama berbeda dari default production di atas. Lalu build dan deploy sekali dari terminal interaktif:
 
 ```sh
 npm run build
 npx cf deploy --prebuilt
 ```
 
-Pilih **Yes** saat diminta menimpa konfigurasi. Setelah berhasil, gunakan deploy command `npx cf deploy --prebuilt` untuk build otomatis. Pastikan ketiga environment variable tadi juga diisi di pengaturan build Cloudflare.
+Pilih **Yes** saat diminta menimpa konfigurasi. Setelah berhasil, gunakan deploy command `npx cf deploy --prebuilt` untuk build otomatis. Pastikan ID resource serta override `SITE_URL` (jika ada) juga diisi di pengaturan build Cloudflare. Hapus override localhost atau ubah menjadi domain production sebelum membangun ulang. Setelah deploy, cek `/robots.txt`, `/sitemap.xml`, `/rss.xml`, dan buat preview baru untuk memastikan semua URL memakai domain utama.
